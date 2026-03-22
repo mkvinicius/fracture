@@ -5,21 +5,98 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/mkvinicius/fracture/blob/master/LICENSE)
 [![Release](https://img.shields.io/github/v/release/mkvinicius/fracture)](https://github.com/mkvinicius/fracture/releases/latest)
 
-FRACTURE is a **local-first desktop application** that runs a market disruption simulation engine on your machine. It uses 12 AI agents (8 Conformists + 4 Disruptors) to simulate how fundamental market rules could be rewritten — and who would rewrite them first.
+FRACTURE is a **local-first desktop application** that runs a market disruption simulation engine on your machine. It uses **32 AI agents (20 Conformists + 12 Disruptors)** interacting over **40 rounds** across **55+ world rules in 7 domains** to simulate how fundamental market rules could be rewritten — and who would rewrite them first.
 
 ---
 
 ## How It Works
 
 1. You ask a strategic question: *"If our main competitor went free tomorrow, what would happen in 12 months?"*
-2. FRACTURE builds a **World** — a graph of the rules that govern your market
-3. **12 agents** with distinct personalities, goals, and power levels interact over multiple rounds
+2. FRACTURE builds a **World** — a graph of 55+ rules across 7 domains that govern your market
+3. **32 agents** with distinct personalities, goals, and power levels interact over 40 rounds
 4. When tension accumulates, a **FRACTURE POINT** triggers — an agent proposes rewriting a rule
 5. Other agents vote. If the proposal passes, the world changes and the simulation continues with new rules
-6. You receive three outputs:
-   - **Probable Future** — what happens if no rules break
-   - **Tension Map** — which rules are under the most pressure
+6. You receive a **6-part strategic report:**
+   - **Probable Future** — the most likely outcome if nothing changes
+   - **Tension Map** — which rules are under the most pressure and why
    - **Rupture Scenarios** — the top 3 ways the market could be disrupted, and how *you* could do it first
+   - **Coalition Map** — hidden alliances that formed between agents during the simulation
+   - **Rupture Timeline** — when each disruption is likely to happen (3 months / 1 year / 3 years)
+   - **Action Playbook** — concrete recommendations: 90-day quick wins, 1-year moves, 3-year positioning
+
+---
+
+## The 32 Agents
+
+### 20 Conformists — defend the current rules
+
+| Agent | Role |
+|---|---|
+| Skeptical Consumer | Questions change, demands proof |
+| Enthusiast Consumer | Early adopter, amplifies trends |
+| Established Competitor | Protects market position |
+| Emerging Competitor | Challenges incumbents |
+| Regulator | Enforces compliance |
+| Strategic Supplier | Controls critical inputs |
+| Investor | Allocates capital based on returns |
+| Key Employee | Shapes internal culture |
+| Legacy Media | Controls narrative and public perception |
+| Corporate B2B Buyer | Risk-averse, values stability |
+| Distribution Channel Partner | Protects intermediary margins |
+| Labor Union | Defends worker rights and wages |
+| Secondary Supplier | Provides redundancy in supply chains |
+| Industry Analyst | Shapes market expectations |
+| Insurance Underwriter | Prices and transfers risk |
+| Pension Fund Manager | Long-term capital, low risk tolerance |
+| Platform Ecosystem Partner | Dependent on platform rules |
+| Local Government | Enforces local regulation |
+| Traditional Retailer | Brick-and-mortar, resists digital shift |
+| Academic Institution | Validates knowledge and credentials |
+
+### 12 Disruptors — challenge and rewrite the rules
+
+| Agent | Role |
+|---|---|
+| Tech Innovator | Builds technology that makes old rules obsolete |
+| Business Model Changer | Rewrites how value is created and captured |
+| Progressive Regulator | Pushes for new regulatory frameworks |
+| Organized Consumer | Collective action to force market change |
+| Venture Capital Fund | Funds asymmetric bets on rule-breaking |
+| Big Tech Entrant | Enters adjacent markets with platform leverage |
+| Social Movement | Changes cultural rules through collective pressure |
+| International Regulator | Imposes cross-border compliance requirements |
+| Open Source Community | Commoditizes proprietary technology |
+| Sovereign Wealth Fund | State capital with geopolitical objectives |
+| Adjacent Startup | Attacks from an unexpected angle |
+| Whistleblower | Exposes hidden rules that maintain the status quo |
+
+---
+
+## The 7 World Domains
+
+FRACTURE simulates 55+ fundamental rules across 7 domains:
+
+| Domain | Rules | Examples |
+|---|---|---|
+| **Market** | 12 | Switching costs, network effects, pricing power |
+| **Technology** | 10 | AI training costs, open source commoditization, edge computing |
+| **Regulation** | 8 | Antitrust enforcement, AI auditability, regulatory sandboxes |
+| **Behavior** | 9 | Remote work norms, compensation models, leadership structures |
+| **Culture** | 8 | Creator economy, authenticity, community-driven purchasing |
+| **Geopolitics** | 8 | Trade sanctions, digital sovereignty, supply chain resilience |
+| **Finance** | 8 | Capital allocation, ESG criteria, tokenization, revenue multiples |
+
+---
+
+## What's Different from MiroFish
+
+| | MiroFish | FRACTURE |
+|---|---|---|
+| Approach | Predicts trends from historical data | Simulates what hasn't happened yet |
+| Output | Forecast | 6-part scenario map + action playbook |
+| Agents | None | 32 AI agents with distinct personalities |
+| Rules | Fixed model | 55+ mutable world rules that break under pressure |
+| Position | Tells you what will happen | Shows you how to change what will happen |
 
 ---
 
@@ -115,10 +192,10 @@ fracture/
     agent.go           ← Agent interface and base types
     simulation.go      ← Main simulation loop
     voting.go          ← Weighted consensus voting
-    report.go          ← Report generation (3 output types + watermark)
+    report.go          ← Report generation (6 output types + watermark)
   archetypes/
-    conformists.go     ← 8 Conformist archetypes
-    disruptors.go      ← 4 Disruptor archetypes
+    conformists.go     ← 20 Conformist archetypes
+    disruptors.go      ← 12 Disruptor archetypes
   memory/
     store.go           ← SQLite-backed agent memory
     calibration.go     ← Feedback loop + archetype calibration
