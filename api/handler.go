@@ -15,6 +15,7 @@ import (
 	"github.com/fracture/fracture/llm"
 	"github.com/fracture/fracture/memory"
 	"github.com/fracture/fracture/security"
+	"github.com/fracture/fracture/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -25,6 +26,7 @@ type Handler struct {
 	signer      *security.Signer
 	sanitizer   *security.Sanitizer
 	auditLogger *security.AuditLogger
+	tel         *telemetry.Client
 
 	// simulation state (in-memory for MVP; persisted to DB)
 	simMu   sync.RWMutex
@@ -48,12 +50,14 @@ func NewHandler(
 	signer *security.Signer,
 	sanitizer *security.Sanitizer,
 	auditLogger *security.AuditLogger,
+	tel *telemetry.Client,
 ) *Handler {
 	return &Handler{
 		db:          database,
 		signer:      signer,
 		sanitizer:   sanitizer,
 		auditLogger: auditLogger,
+		tel:         tel,
 		simJobs:     make(map[string]*simJob),
 	}
 }
@@ -109,6 +113,10 @@ func (h *Handler) Routes() http.Handler {
 
 	// Audit log
 	r.Get("/audit", h.getAuditLog)
+
+	// Telemetry opt-in/opt-out
+	r.Get("/telemetry", h.getTelemetry)
+	r.Post("/telemetry", h.setTelemetry)
 
 	return r
 }
@@ -763,4 +771,35 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+
+// getTelemetry returns the current telemetry opt-in status.
+func (h *Handler) getTelemetry(w http.ResponseWriter, r *http.Request) {
+	enabled := false
+	if h.tel != nil {
+		enabled = h.tel.IsEnabled()
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"enabled": enabled})
+}
+
+// setTelemetry updates the telemetry opt-in preference.
+func (h *Handler) setTelemetry(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if h.tel != nil {
+		if body.Enabled {
+			_ = h.tel.Enable()
+		} else {
+			_ = h.tel.Disable()
+		}
+	}
+	_ = h.auditLogger.Log("telemetry.updated", "system", map[string]bool{"enabled": body.Enabled})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

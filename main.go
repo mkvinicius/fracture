@@ -65,7 +65,7 @@ func main() {
 	r.Use(middleware.Timeout(120 * time.Second))
 
 	// API routes
-	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger)
+	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger, tel)
 	r.Mount("/api", apiHandler.Routes())
 
 	// Serve dashboard (embedded React build)
