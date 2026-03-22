@@ -3,10 +3,13 @@ package llm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -43,19 +46,83 @@ func DefaultRouterConfig() RouterConfig {
 	}
 }
 
+// cacheEntry holds a cached LLM response.
+type cacheEntry struct {
+	response string
+	tokens   int
+	expiry   time.Time
+}
+
+// responseCache is a thread-safe in-memory LLM response cache.
+type responseCache struct {
+	mu      sync.RWMutex
+	entries map[string]cacheEntry
+}
+
+func newResponseCache() *responseCache {
+	c := &responseCache{entries: make(map[string]cacheEntry)}
+	go c.evictLoop()
+	return c
+}
+
+func (c *responseCache) key(system, user string, maxTokens int) string {
+	h := sha256.New()
+	h.Write([]byte(fmt.Sprintf("%s|%s|%d", system, user, maxTokens)))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func (c *responseCache) get(k string) (string, int, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	e, ok := c.entries[k]
+	if !ok || time.Now().After(e.expiry) {
+		return "", 0, false
+	}
+	return e.response, e.tokens, true
+}
+
+func (c *responseCache) set(k, response string, tokens int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[k] = cacheEntry{
+		response: response,
+		tokens:   tokens,
+		expiry:   time.Now().Add(10 * time.Minute),
+	}
+}
+
+func (c *responseCache) evictLoop() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		c.mu.Lock()
+		now := time.Now()
+		for k, e := range c.entries {
+			if now.After(e.expiry) {
+				delete(c.entries, k)
+			}
+		}
+		c.mu.Unlock()
+	}
+}
+
 // Router selects the right model for each agent role and calls it.
+// It includes a semaphore to cap concurrent API calls, a response cache,
+// and retry logic with exponential backoff.
 type Router struct {
-	cfg    RouterConfig
-	client *http.Client
+	cfg       RouterConfig
+	client    *http.Client
+	semaphore chan struct{}
+	cache     *responseCache
 }
 
 // NewRouter creates a Router with the given configuration.
 func NewRouter(cfg RouterConfig) *Router {
 	return &Router{
-		cfg: cfg,
-		client: &http.Client{
-			Timeout: 90 * time.Second,
-		},
+		cfg:       cfg,
+		client:    &http.Client{Timeout: 90 * time.Second},
+		semaphore: make(chan struct{}, 10), // max 10 concurrent API calls
+		cache:     newResponseCache(),
 	}
 }
 
@@ -77,28 +144,74 @@ type RoleCaller struct {
 }
 
 // Call sends a chat completion request to the configured model.
-// Returns (response text, tokens used, error).
+// Includes semaphore throttling, response caching, and retry with exponential backoff.
 func (rc *RoleCaller) Call(ctx context.Context, systemPrompt, userPrompt string, maxTokens int) (string, int, error) {
-	switch rc.cfg.Provider {
-	case "openai":
-		return rc.callOpenAI(ctx, systemPrompt, userPrompt, maxTokens)
-	case "anthropic":
-		return rc.callAnthropic(ctx, systemPrompt, userPrompt, maxTokens)
-	case "google":
-		return rc.callGoogle(ctx, systemPrompt, userPrompt, maxTokens)
-	case "ollama":
-		return rc.callOllama(ctx, systemPrompt, userPrompt, maxTokens)
-	default:
-		return "", 0, fmt.Errorf("unknown provider: %s", rc.cfg.Provider)
+	// Check cache for deterministic roles
+	if rc.role == RoleConformist || rc.role == RoleCoherence || rc.role == RoleSanitizer {
+		k := rc.router.cache.key(systemPrompt, userPrompt, maxTokens)
+		if resp, tokens, ok := rc.router.cache.get(k); ok {
+			return resp, tokens, nil
+		}
 	}
+
+	// Acquire semaphore slot (max 10 concurrent calls)
+	select {
+	case rc.router.semaphore <- struct{}{}:
+		defer func() { <-rc.router.semaphore }()
+	case <-ctx.Done():
+		return "", 0, ctx.Err()
+	}
+
+	// Retry with exponential backoff (3 attempts)
+	var (
+		resp   string
+		tokens int
+		err    error
+	)
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(math.Pow(2, float64(attempt))) * 500 * time.Millisecond
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+				return "", 0, ctx.Err()
+			}
+		}
+		switch rc.cfg.Provider {
+		case "openai":
+			resp, tokens, err = rc.callOpenAI(ctx, systemPrompt, userPrompt, maxTokens)
+		case "anthropic":
+			resp, tokens, err = rc.callAnthropic(ctx, systemPrompt, userPrompt, maxTokens)
+		case "google":
+			resp, tokens, err = rc.callGoogle(ctx, systemPrompt, userPrompt, maxTokens)
+		case "ollama":
+			resp, tokens, err = rc.callOllama(ctx, systemPrompt, userPrompt, maxTokens)
+		default:
+			return "", 0, fmt.Errorf("unknown provider: %s", rc.cfg.Provider)
+		}
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Store in cache for eligible roles
+	if rc.role == RoleConformist || rc.role == RoleCoherence || rc.role == RoleSanitizer {
+		k := rc.router.cache.key(systemPrompt, userPrompt, maxTokens)
+		rc.router.cache.set(k, resp, tokens)
+	}
+	return resp, tokens, nil
 }
 
 // ─── OpenAI ──────────────────────────────────────────────────────────────────
 
 type openAIRequest struct {
-	Model     string          `json:"model"`
-	Messages  []openAIMessage `json:"messages"`
-	MaxTokens int             `json:"max_tokens"`
+	Model       string          `json:"model"`
+	Messages    []openAIMessage `json:"messages"`
+	MaxTokens   int             `json:"max_tokens"`
+	Temperature float64         `json:"temperature"`
 }
 
 type openAIMessage struct {
@@ -121,13 +234,19 @@ type openAIResponse struct {
 }
 
 func (rc *RoleCaller) callOpenAI(ctx context.Context, system, user string, maxTokens int) (string, int, error) {
+	// Conformist/coherence agents use lower temperature for speed and consistency
+	temp := 0.7
+	if rc.role == RoleConformist || rc.role == RoleCoherence {
+		temp = 0.3
+	}
 	payload := openAIRequest{
 		Model: rc.cfg.Model,
 		Messages: []openAIMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		MaxTokens: maxTokens,
+		MaxTokens:   maxTokens,
+		Temperature: temp,
 	}
 	body, _ := json.Marshal(payload)
 

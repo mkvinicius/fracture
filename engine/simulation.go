@@ -40,18 +40,38 @@ type FractureEvent struct {
 	VoteBreakdown  []VoteRecord `json:"vote_breakdown"`
 }
 
+// Coalition represents a group of agents aligned around a common interest.
+type Coalition struct {
+	Name        string   `json:"name"`
+	AgentNames  []string `json:"agent_names"`
+	SharedGoal  string   `json:"shared_goal"`
+	Strength    float64  `json:"strength"` // 0.0-1.0
+	IsDisruptive bool   `json:"is_disruptive"`
+}
+
+// ActionPlaybook is the strategic recommendation for the user.
+type ActionPlaybook struct {
+	Horizon90Days  []string `json:"horizon_90_days"`
+	Horizon1Year   []string `json:"horizon_1_year"`
+	Horizon3Years  []string `json:"horizon_3_years"`
+	QuickWins      []string `json:"quick_wins"`
+	CriticalRisks  []string `json:"critical_risks"`
+}
+
 // SimulationResult is the final output after all rounds complete.
 type SimulationResult struct {
-	SimulationID    string          `json:"simulation_id"`
-	Question        string          `json:"question"`
-	Rounds          []RoundResult   `json:"rounds"`
-	FractureEvents  []FractureEvent `json:"fracture_events"`
-	FinalWorld      WorldSnapshot   `json:"final_world"`
-	ProbableFuture  string          `json:"probable_future"`   // narrative
-	TensionMap      map[string]float64 `json:"tension_map"`
-	RuptureScenarios []RuptureScenario `json:"rupture_scenarios"`
-	TotalTokens     int             `json:"total_tokens"`
-	DurationMs      int64           `json:"duration_ms"`
+	SimulationID     string             `json:"simulation_id"`
+	Question         string             `json:"question"`
+	Rounds           []RoundResult      `json:"rounds"`
+	FractureEvents   []FractureEvent    `json:"fracture_events"`
+	FinalWorld       WorldSnapshot      `json:"final_world"`
+	ProbableFuture   string             `json:"probable_future"`
+	TensionMap       map[string]float64 `json:"tension_map"`
+	RuptureScenarios []RuptureScenario  `json:"rupture_scenarios"`
+	Coalitions       []Coalition        `json:"coalitions"`
+	ActionPlaybook   *ActionPlaybook    `json:"action_playbook,omitempty"`
+	TotalTokens      int                `json:"total_tokens"`
+	DurationMs       int64              `json:"duration_ms"`
 }
 
 // RuptureScenario describes one possible future where a rule is broken.
@@ -81,7 +101,7 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 		cfg.ID = uuid.New().String()
 	}
 	if cfg.MaxRounds == 0 {
-		cfg.MaxRounds = 20
+		cfg.MaxRounds = 40
 	}
 	return &Simulation{
 		cfg:   cfg,

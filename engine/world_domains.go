@@ -16,6 +16,10 @@ func DefaultWorldForDomain(domain RuleDomain, question, context string) *World {
 		rules = behaviorRules()
 	case DomainCulture:
 		rules = cultureRules()
+	case DomainGeopolitics:
+		rules = geopoliticsRules()
+	case DomainFinance:
+		rules = financeRules()
 	default: // market + anything else
 		rules = marketRules()
 	}
@@ -44,6 +48,10 @@ func marketRules() []*Rule {
 		{ID: "mkt-006", Description: "Marketing spend scales linearly with customer acquisition", Domain: DomainMarket, Stability: 0.60, IsActive: true},
 		{ID: "mkt-007", Description: "Switching costs protect incumbent market positions", Domain: DomainMarket, Stability: 0.65, IsActive: true},
 		{ID: "mkt-008", Description: "Network effects favor the largest player in a category", Domain: DomainMarket, Stability: 0.72, IsActive: true},
+		{ID: "mkt-009", Description: "Pricing power belongs to whoever controls the bottleneck in the value chain", Domain: DomainMarket, Stability: 0.68, IsActive: true},
+		{ID: "mkt-010", Description: "Market share is a lagging indicator of competitive position", Domain: DomainMarket, Stability: 0.62, IsActive: true},
+		{ID: "mkt-011", Description: "Category leaders set the pricing anchor for the entire market", Domain: DomainMarket, Stability: 0.70, IsActive: true},
+		{ID: "mkt-012", Description: "Customer acquisition cost rises as a market matures", Domain: DomainMarket, Stability: 0.65, IsActive: true},
 	}
 }
 
@@ -55,6 +63,10 @@ func technologyRules() []*Rule {
 		{ID: "tech-004", Description: "Security requires ongoing human oversight and patching", Domain: DomainTechnology, Stability: 0.65, IsActive: true},
 		{ID: "tech-005", Description: "Integration between systems requires custom development work", Domain: DomainTechnology, Stability: 0.45, IsActive: true},
 		{ID: "tech-006", Description: "Technology adoption follows a predictable S-curve", Domain: DomainTechnology, Stability: 0.60, IsActive: true},
+		{ID: "tech-007", Description: "Proprietary data moats create sustainable competitive advantage", Domain: DomainTechnology, Stability: 0.55, IsActive: true},
+		{ID: "tech-008", Description: "Hardware and software are developed and sold separately", Domain: DomainTechnology, Stability: 0.50, IsActive: true},
+		{ID: "tech-009", Description: "Open source commoditizes yesterday's proprietary technology", Domain: DomainTechnology, Stability: 0.42, IsActive: true},
+		{ID: "tech-010", Description: "Edge computing reduces latency but increases operational complexity", Domain: DomainTechnology, Stability: 0.58, IsActive: true},
 	}
 }
 
@@ -65,6 +77,9 @@ func regulationRules() []*Rule {
 		{ID: "reg-003", Description: "Data must be stored within national borders (data sovereignty)", Domain: DomainRegulation, Stability: 0.60, IsActive: true},
 		{ID: "reg-004", Description: "Consumer protection laws limit pricing and contract terms", Domain: DomainRegulation, Stability: 0.75, IsActive: true},
 		{ID: "reg-005", Description: "Antitrust enforcement prevents monopolistic consolidation", Domain: DomainRegulation, Stability: 0.55, IsActive: true},
+		{ID: "reg-006", Description: "AI systems must be auditable and explainable to regulators", Domain: DomainRegulation, Stability: 0.45, IsActive: true},
+		{ID: "reg-007", Description: "Environmental disclosure is voluntary for private companies", Domain: DomainRegulation, Stability: 0.40, IsActive: true},
+		{ID: "reg-008", Description: "Regulatory sandboxes allow limited market testing without full compliance", Domain: DomainRegulation, Stability: 0.50, IsActive: true},
 	}
 }
 
@@ -76,6 +91,9 @@ func behaviorRules() []*Rule {
 		{ID: "beh-004", Description: "Management hierarchies determine decision-making authority", Domain: DomainBehavior, Stability: 0.60, IsActive: true},
 		{ID: "beh-005", Description: "Company culture is shaped by in-person interactions", Domain: DomainBehavior, Stability: 0.40, IsActive: true},
 		{ID: "beh-006", Description: "Compensation is primarily salary-based with annual reviews", Domain: DomainBehavior, Stability: 0.65, IsActive: true},
+		{ID: "beh-007", Description: "Remote work is a benefit, not the default mode of operation", Domain: DomainBehavior, Stability: 0.38, IsActive: true},
+		{ID: "beh-008", Description: "Knowledge workers are expected to specialize in a single domain", Domain: DomainBehavior, Stability: 0.52, IsActive: true},
+		{ID: "beh-009", Description: "Leadership is earned through tenure and internal promotion", Domain: DomainBehavior, Stability: 0.58, IsActive: true},
 	}
 }
 
@@ -86,5 +104,34 @@ func cultureRules() []*Rule {
 		{ID: "cul-003", Description: "Generational differences drive distinct consumption patterns", Domain: DomainCulture, Stability: 0.70, IsActive: true},
 		{ID: "cul-004", Description: "Environmental and social values increasingly influence purchase decisions", Domain: DomainCulture, Stability: 0.45, IsActive: true},
 		{ID: "cul-005", Description: "Trust in institutions and established brands is declining", Domain: DomainCulture, Stability: 0.40, IsActive: true},
+		{ID: "cul-006", Description: "Creator economy enables individuals to build audiences that rival media companies", Domain: DomainCulture, Stability: 0.38, IsActive: true},
+		{ID: "cul-007", Description: "Authenticity and transparency are rewarded more than polish and perfection", Domain: DomainCulture, Stability: 0.42, IsActive: true},
+		{ID: "cul-008", Description: "Community belonging drives purchasing decisions as much as product features", Domain: DomainCulture, Stability: 0.48, IsActive: true},
+	}
+}
+
+func geopoliticsRules() []*Rule {
+	return []*Rule{
+		{ID: "geo-001", Description: "Free trade agreements reduce tariffs and enable global supply chains", Domain: DomainGeopolitics, Stability: 0.50, IsActive: true},
+		{ID: "geo-002", Description: "Technology exports are controlled by national security considerations", Domain: DomainGeopolitics, Stability: 0.60, IsActive: true},
+		{ID: "geo-003", Description: "Geopolitical alliances shape which markets companies can access", Domain: DomainGeopolitics, Stability: 0.65, IsActive: true},
+		{ID: "geo-004", Description: "Supply chain resilience requires geographic diversification", Domain: DomainGeopolitics, Stability: 0.45, IsActive: true},
+		{ID: "geo-005", Description: "Economic sanctions can cut off access to critical markets overnight", Domain: DomainGeopolitics, Stability: 0.55, IsActive: true},
+		{ID: "geo-006", Description: "National champions receive state support to compete globally", Domain: DomainGeopolitics, Stability: 0.58, IsActive: true},
+		{ID: "geo-007", Description: "Digital sovereignty laws require local data infrastructure", Domain: DomainGeopolitics, Stability: 0.48, IsActive: true},
+		{ID: "geo-008", Description: "Currency exchange risk is a cost of doing business internationally", Domain: DomainGeopolitics, Stability: 0.70, IsActive: true},
+	}
+}
+
+func financeRules() []*Rule {
+	return []*Rule{
+		{ID: "fin-001", Description: "Capital allocation follows risk-adjusted return expectations", Domain: DomainFinance, Stability: 0.75, IsActive: true},
+		{ID: "fin-002", Description: "Equity dilution is the price of venture capital growth", Domain: DomainFinance, Stability: 0.70, IsActive: true},
+		{ID: "fin-003", Description: "Profitability is required for long-term business survival", Domain: DomainFinance, Stability: 0.72, IsActive: true},
+		{ID: "fin-004", Description: "Interest rates set by central banks determine the cost of capital", Domain: DomainFinance, Stability: 0.80, IsActive: true},
+		{ID: "fin-005", Description: "IPOs and M&A are the primary exit paths for private investors", Domain: DomainFinance, Stability: 0.65, IsActive: true},
+		{ID: "fin-006", Description: "ESG criteria increasingly influence institutional capital allocation", Domain: DomainFinance, Stability: 0.45, IsActive: true},
+		{ID: "fin-007", Description: "Tokenization enables fractional ownership of previously illiquid assets", Domain: DomainFinance, Stability: 0.35, IsActive: true},
+		{ID: "fin-008", Description: "Revenue multiples compress as growth slows and rates rise", Domain: DomainFinance, Stability: 0.60, IsActive: true},
 	}
 }

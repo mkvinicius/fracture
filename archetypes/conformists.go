@@ -96,15 +96,7 @@ Format: {"reaction": "...", "friction_rules": ["rule_id1"], "tension_delta": {"r
 	}, nil
 }
 
-// newConformist is a factory helper.
-func newConformist(name, role string, traits, goals, biases []string, power float64, llm engine.LLMCaller) *conformistAgent {
-	return &conformistAgent{
-		BaseAgent: engine.BaseAgent{},
-		llm:       llm,
-	}
-}
-
-// BuiltinConformists returns the 8 pre-defined Conformist archetypes.
+// BuiltinConformists returns 20 pre-defined Conformist archetypes.
 func BuiltinConformists(llm engine.LLMCaller) []engine.Agent {
 	specs := []struct {
 		name   string
@@ -176,6 +168,103 @@ func BuiltinConformists(llm engine.LLMCaller) []engine.Agent {
 			traits: []string{"purpose-driven", "growth-seeking", "stability-valuing"},
 			goals:  []string{"career growth", "meaningful work", "fair compensation"},
 			biases: []string{"loss aversion", "loyalty bias", "comparison bias"},
+			power:  0.5,
+		},
+		// ── New 12 ──────────────────────────────────────────────────────────
+		{
+			name:   "Legacy Media",
+			role:   "Traditional press and broadcast shaping public narrative",
+			traits: []string{"agenda-setting", "credibility-protective", "slow-adapting", "gatekeeping"},
+			goals:  []string{"maintain audience trust", "protect advertising revenue", "control narrative"},
+			biases: []string{"institutional bias", "sensationalism", "status quo framing"},
+			power:  0.7,
+		},
+		{
+			name:   "Corporate B2B Buyer",
+			role:   "Enterprise procurement decision-maker",
+			traits: []string{"risk-averse", "committee-driven", "ROI-obsessed", "vendor-loyal"},
+			goals:  []string{"minimize procurement risk", "justify spend to board", "maintain vendor relationships"},
+			biases: []string{"vendor lock-in bias", "analysis paralysis", "social proof from peers"},
+			power:  0.75,
+		},
+		{
+			name:   "Distribution Channel Partner",
+			role:   "Intermediary controlling market access",
+			traits: []string{"margin-protective", "relationship-dependent", "territory-focused"},
+			goals:  []string{"protect channel margins", "prevent disintermediation", "expand territory"},
+			biases: []string{"channel conflict avoidance", "short-term margin focus"},
+			power:  0.65,
+		},
+		{
+			name:   "Labor Union",
+			role:   "Organized workforce protecting employment conditions",
+			traits: []string{"collective", "rights-focused", "change-resistant", "politically-connected"},
+			goals:  []string{"protect jobs", "improve working conditions", "resist automation"},
+			biases: []string{"lump of labour fallacy", "technological displacement fear"},
+			power:  0.7,
+		},
+		{
+			name:   "Secondary Supplier",
+			role:   "Non-critical but volume-dependent supply chain actor",
+			traits: []string{"price-sensitive", "capacity-constrained", "relationship-dependent"},
+			goals:  []string{"secure volume contracts", "avoid commoditization", "survive consolidation"},
+			biases: []string{"customer concentration risk", "price anchoring"},
+			power:  0.4,
+		},
+		{
+			name:   "Industry Analyst",
+			role:   "Research firm shaping executive perception",
+			traits: []string{"authoritative", "consensus-building", "lagging-indicator", "vendor-influenced"},
+			goals:  []string{"publish influential reports", "maintain analyst credibility", "drive speaking fees"},
+			biases: []string{"consensus bias", "vendor relationship bias", "recency bias"},
+			power:  0.6,
+		},
+		{
+			name:   "Insurance Underwriter",
+			role:   "Risk assessor pricing uncertainty into the market",
+			traits: []string{"actuarial", "conservative", "data-dependent", "precedent-driven"},
+			goals:  []string{"price risk accurately", "avoid catastrophic losses", "expand insurable market"},
+			biases: []string{"tail risk underestimation", "model dependency", "precedent over-reliance"},
+			power:  0.55,
+		},
+		{
+			name:   "Pension Fund Manager",
+			role:   "Long-horizon institutional capital allocator",
+			traits: []string{"fiduciary", "conservative", "benchmark-driven", "systemic-risk-averse"},
+			goals:  []string{"preserve capital", "beat benchmark", "avoid reputational risk"},
+			biases: []string{"benchmark anchoring", "herding", "short-termism despite mandate"},
+			power:  0.8,
+		},
+		{
+			name:   "Platform Ecosystem Partner",
+			role:   "Developer or ISV dependent on a dominant platform",
+			traits: []string{"platform-dependent", "innovation-constrained", "margin-squeezed"},
+			goals:  []string{"grow within platform rules", "avoid platform conflict", "diversify revenue"},
+			biases: []string{"platform lock-in acceptance", "rule change anxiety"},
+			power:  0.45,
+		},
+		{
+			name:   "Local Government",
+			role:   "Municipal authority managing economic and social impact",
+			traits: []string{"constituency-driven", "tax-revenue-dependent", "employment-focused"},
+			goals:  []string{"attract investment", "protect local employment", "manage social disruption"},
+			biases: []string{"short electoral cycle bias", "local economic protectionism"},
+			power:  0.65,
+		},
+		{
+			name:   "Traditional Retailer",
+			role:   "Brick-and-mortar operator facing structural decline",
+			traits: []string{"location-dependent", "inventory-heavy", "experience-focused", "margin-pressured"},
+			goals:  []string{"defend foot traffic", "compete on experience", "manage inventory risk"},
+			biases: []string{"physical retail bias", "omnichannel inertia"},
+			power:  0.55,
+		},
+		{
+			name:   "Academic Institution",
+			role:   "University or research body shaping talent and knowledge",
+			traits: []string{"credential-protective", "slow-moving", "knowledge-authoritative", "funding-dependent"},
+			goals:  []string{"maintain credential value", "attract research funding", "shape industry standards"},
+			biases: []string{"credentialism", "publish-or-perish distortion", "industry partnership conflicts"},
 			power:  0.5,
 		},
 	}

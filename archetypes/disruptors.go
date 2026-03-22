@@ -142,7 +142,7 @@ Respond in JSON format:
 	return action, nil
 }
 
-// BuiltinDisruptors returns the 4 pre-defined Disruptor archetypes.
+// BuiltinDisruptors returns 12 pre-defined Disruptor archetypes.
 func BuiltinDisruptors(llm engine.LLMCaller) []engine.Agent {
 	specs := []struct {
 		name              string
@@ -187,7 +187,80 @@ func BuiltinDisruptors(llm engine.LLMCaller) []engine.Agent {
 			goals:             []string{"force transparency", "create alternatives", "punish bad actors"},
 			biases:            []string{"outrage bias", "purity spiral"},
 			power:             0.6,
-			personalityFactor: rand.Float64()*0.5 + 0.8, // 0.8-1.3 random
+			personalityFactor: rand.Float64()*0.5 + 0.8,
+		},
+		// ── New 8 ─────────────────────────────────────────────────────────────
+		{
+			name:              "Venture Capital Fund",
+			role:              "Patient capital hunting for category-defining bets",
+			traits:            []string{"asymmetric-return-seeking", "narrative-driven", "portfolio-thinking", "contrarian"},
+			goals:             []string{"fund the rule-breaker", "create new categories", "exit at 100x"},
+			biases:            []string{"power law obsession", "founder worship", "FOMO on hot sectors"},
+			power:             0.85,
+			personalityFactor: 1.4,
+		},
+		{
+			name:              "Big Tech Entrant",
+			role:              "Platform giant entering adjacent market with unlimited resources",
+			traits:            []string{"resource-abundant", "distribution-dominant", "ecosystem-colonizing", "patient"},
+			goals:             []string{"own the new layer", "leverage existing user base", "commoditize the complement"},
+			biases:            []string{"platform extension bias", "anti-competitive blind spot"},
+			power:             0.95,
+			personalityFactor: 1.1,
+		},
+		{
+			name:              "Social Movement",
+			role:              "Decentralized activist network rewriting cultural norms",
+			traits:            []string{"decentralized", "values-absolute", "viral", "unpredictable"},
+			goals:             []string{"force systemic change", "hold power accountable", "rewrite acceptable behavior"},
+			biases:            []string{"moral purity spiral", "outrage amplification", "short attention span"},
+			power:             0.65,
+			personalityFactor: rand.Float64()*0.6 + 1.0,
+		},
+		{
+			name:              "International Regulator",
+			role:              "Supranational body imposing cross-border standards",
+			traits:            []string{"jurisdiction-expanding", "precedent-setting", "slow-but-inevitable", "coalition-dependent"},
+			goals:             []string{"harmonize global standards", "prevent regulatory arbitrage", "protect citizens at scale"},
+			biases:            []string{"one-size-fits-all regulation", "enforcement lag"},
+			power:             0.9,
+			personalityFactor: 0.7,
+		},
+		{
+			name:              "Open Source Community",
+			role:              "Decentralized developer collective commoditizing proprietary value",
+			traits:            []string{"collaborative", "anti-proprietary", "meritocratic", "globally-distributed"},
+			goals:             []string{"make technology free", "prevent lock-in", "outcompete through community"},
+			biases:            []string{"anti-commercial bias", "tragedy of the commons risk"},
+			power:             0.7,
+			personalityFactor: 1.2,
+		},
+		{
+			name:              "Sovereign Wealth Fund",
+			role:              "State-backed capital deploying geopolitical strategy through investment",
+			traits:            []string{"patient-capital", "geopolitically-motivated", "opaque", "strategic-sector-focused"},
+			goals:             []string{"secure strategic assets", "export national influence", "diversify state revenue"},
+			biases:            []string{"national interest over returns", "opacity bias"},
+			power:             0.9,
+			personalityFactor: 0.9,
+		},
+		{
+			name:              "Adjacent Startup",
+			role:              "Well-funded startup attacking from an unexpected adjacent market",
+			traits:            []string{"cross-domain", "fast-moving", "customer-obsessed", "rule-ignorant"},
+			goals:             []string{"reframe the problem", "steal customers from incumbents", "force category redefinition"},
+			biases:            []string{"outsider advantage overconfidence", "product-market fit tunnel vision"},
+			power:             0.6,
+			personalityFactor: 1.5,
+		},
+		{
+			name:              "Whistleblower",
+			role:              "Insider exposing systemic failures and forcing transparency",
+			traits:            []string{"truth-driven", "risk-tolerant", "isolated", "high-impact-low-probability"},
+			goals:             []string{"expose hidden rules", "trigger regulatory action", "shift public trust"},
+			biases:            []string{"moral absolutism", "underestimation of personal cost"},
+			power:             0.5,
+			personalityFactor: rand.Float64()*1.0 + 0.5,
 		},
 	}
 

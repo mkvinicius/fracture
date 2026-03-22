@@ -10,11 +10,13 @@ import (
 type RuleDomain string
 
 const (
-	DomainMarket     RuleDomain = "market"
-	DomainTechnology RuleDomain = "technology"
-	DomainRegulation RuleDomain = "regulation"
-	DomainBehavior   RuleDomain = "behavior"
-	DomainCulture    RuleDomain = "culture"
+	DomainMarket      RuleDomain = "market"
+	DomainTechnology  RuleDomain = "technology"
+	DomainRegulation  RuleDomain = "regulation"
+	DomainBehavior    RuleDomain = "behavior"
+	DomainCulture     RuleDomain = "culture"
+	DomainGeopolitics RuleDomain = "geopolitics"
+	DomainFinance     RuleDomain = "finance"
 )
 
 // Rule represents a fundamental rule of the simulated world.
