@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -335,15 +336,20 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 	synthesisLLM := router.ForRole(llm.RoleSynthesis)
 	rg := engine.NewReportGenerator(synthesisLLM)
 	report, reportErr := rg.GenerateReport(ctx, &result, job.Question)
+	if reportErr != nil {
+		log.Printf("[FRACTURE] ReportGenerator error for sim %s: %v", job.ID, reportErr)
+	}
 
 	var finalData interface{}
 	var durationMs int64
 	if reportErr == nil && report != nil {
 		finalData = report
 		durationMs = report.DurationMs
+		log.Printf("[FRACTURE] Report generated for sim %s: %d tokens, %d rupture scenarios", job.ID, report.TotalTokens, len(report.RuptureScenarios))
 	} else {
 		finalData = &result
 		durationMs = result.DurationMs
+		log.Printf("[FRACTURE] Saving raw result for sim %s (no report)", job.ID)
 	}
 
 	h.simMu.Lock()
@@ -702,11 +708,11 @@ func (h *Handler) buildLLMRouter() (*llm.Router, error) {
 		hasAny = true
 	}
 	if anthropicKey != "" {
-		cfg[llm.RoleSynthesis] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-sonnet-20241022", APIKey: anthropicKey}
-		cfg[llm.RoleSanitizer] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-haiku-20241022", APIKey: anthropicKey}
+		cfg[llm.RoleSynthesis] = llm.ModelConfig{Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKey: anthropicKey}
+		cfg[llm.RoleSanitizer] = llm.ModelConfig{Provider: "anthropic", Model: "claude-haiku-4-5-20251001", APIKey: anthropicKey}
 		if !hasAny {
-			cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-haiku-20241022", APIKey: anthropicKey}
-			cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-sonnet-20241022", APIKey: anthropicKey}
+			cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "anthropic", Model: "claude-haiku-4-5-20251001", APIKey: anthropicKey}
+			cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "anthropic", Model: "claude-sonnet-4-20250514", APIKey: anthropicKey}
 		}
 		hasAny = true
 	}

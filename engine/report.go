@@ -159,6 +159,25 @@ func (rg *ReportGenerator) buildTensionMap(result *SimulationResult) []TensionEn
 	return entries
 }
 
+// extractJSON removes markdown code fences from LLM responses.
+func extractJSON(raw string) string {
+	// Remove ```json ... ``` or ``` ... ``` blocks
+	raw = strings.TrimSpace(raw)
+	if strings.HasPrefix(raw, "```") {
+		// Find the first newline after the opening fence
+		newline := strings.Index(raw, "\n")
+		if newline != -1 {
+			raw = raw[newline+1:]
+		}
+		// Remove closing fence
+		if idx := strings.LastIndex(raw, "```"); idx != -1 {
+			raw = raw[:idx]
+		}
+		raw = strings.TrimSpace(raw)
+	}
+	return raw
+}
+
 // generateProbableFuture calls the synthesis LLM to produce the narrative.
 func (rg *ReportGenerator) generateProbableFuture(ctx context.Context, question, summary string) (ProbableFuture, error) {
 	systemPrompt := `You are a strategic analyst synthesizing a market simulation.
@@ -188,8 +207,9 @@ Produce a Probable Future report in this exact JSON format:
 		return ProbableFuture{}, err
 	}
 
+	clean := extractJSON(raw)
 	var result ProbableFuture
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+	if err := json.Unmarshal([]byte(clean), &result); err != nil {
 		result.Narrative = raw
 		result.Confidence = 0.5
 	}
@@ -238,8 +258,9 @@ Produce exactly 3 rupture scenarios in this JSON format:
 		return nil, err
 	}
 
+	clean := extractJSON(raw)
 	var scenarios []RuptureScenario
-	if err := json.Unmarshal([]byte(raw), &scenarios); err != nil {
+	if err := json.Unmarshal([]byte(clean), &scenarios); err != nil {
 		return []RuptureScenario{{
 			RuleDescription: "Analysis unavailable",
 			HowItHappens:    raw,

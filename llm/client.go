@@ -36,10 +36,10 @@ type RouterConfig map[ModelRole]ModelConfig
 func DefaultRouterConfig() RouterConfig {
 	return RouterConfig{
 		RoleConformist: {Provider: "openai", Model: "gpt-4o-mini"},
-		RoleDisruptor:  {Provider: "openai", Model: "gpt-4o"},
-		RoleSynthesis:  {Provider: "anthropic", Model: "claude-3-5-sonnet-20241022"},
-		RoleSanitizer:  {Provider: "anthropic", Model: "claude-3-5-haiku-20241022"},
-		RoleCoherence:  {Provider: "google", Model: "gemini-1.5-flash"},
+		RoleDisruptor:  {Provider: "anthropic", Model: "claude-haiku-4-5-20251001"},
+		RoleSynthesis:  {Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		RoleSanitizer:  {Provider: "anthropic", Model: "claude-haiku-4-5-20251001"},
+		RoleCoherence:  {Provider: "openai", Model: "gpt-4o-mini"},
 	}
 }
 
