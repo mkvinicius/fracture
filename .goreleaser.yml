@@ -1,0 +1,60 @@
+version: 2
+
+project_name: fracture
+
+before:
+  hooks:
+    # Build the React dashboard before building Go binaries
+    - sh -c "cd dashboard && pnpm install --frozen-lockfile && pnpm build"
+
+builds:
+  - id: fracture
+    main: .
+    binary: fracture
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    hooks:
+      post:
+        # macOS: sign the binary (requires APPLE_DEVELOPER_ID env var)
+        - sh -c 'if [ "{{ .Os }}" = "darwin" ] && [ -n "$APPLE_DEVELOPER_ID" ]; then codesign --force --sign "$APPLE_DEVELOPER_ID" {{ .Path }}; fi'
+
+archives:
+  - id: fracture-archive
+    name_template: "fracture_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "fracture_{{ .Version }}_checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: true
+  prerelease: auto
+  name_template: "FRACTURE {{ .Tag }}"
