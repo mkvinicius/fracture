@@ -2,7 +2,10 @@
 
 > Simulate how market rules break — and be the one to break them first.
 
-FRACTURE is a desktop application that runs a market disruption simulation engine locally on your machine. It uses 12 AI agents (8 Conformists + 4 Disruptors) to simulate how fundamental market rules could be rewritten — and who would rewrite them.
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/mkvinicius/fracture/blob/master/LICENSE)
+[![Release](https://img.shields.io/github/v/release/mkvinicius/fracture)](https://github.com/mkvinicius/fracture/releases/latest)
+
+FRACTURE is a **local-first desktop application** that runs a market disruption simulation engine on your machine. It uses 12 AI agents (8 Conformists + 4 Disruptors) to simulate how fundamental market rules could be rewritten — and who would rewrite them first.
 
 ---
 
@@ -22,21 +25,29 @@ FRACTURE is a desktop application that runs a market disruption simulation engin
 
 ## Installation
 
+### Linux (amd64)
+
+```bash
+curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-linux-amd64.tar.gz | tar xz
+chmod +x fracture
+./fracture
+```
+
+### Linux (arm64 — Apple Silicon via Rosetta or native ARM servers)
+
+```bash
+curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-linux-arm64.tar.gz | tar xz
+chmod +x fracture
+./fracture
+```
+
+### Windows (amd64)
+
+Download `fracture-windows-amd64.zip` from the [releases page](https://github.com/mkvinicius/fracture/releases/latest), extract, and run `fracture.exe`.
+
 ### macOS
-```bash
-# Download the latest release
-curl -L https://github.com/your-org/fracture/releases/latest/download/fracture_macos_amd64.tar.gz | tar xz
-./fracture
-```
 
-### Windows
-Download `fracture_windows_amd64.zip` from the [releases page](https://github.com/your-org/fracture/releases), extract, and run `fracture.exe`.
-
-### Linux
-```bash
-curl -L https://github.com/your-org/fracture/releases/latest/download/fracture_linux_amd64.tar.gz | tar xz
-./fracture
-```
+Build from source (see below) — macOS binaries require code signing for distribution.
 
 FRACTURE opens your browser automatically at `http://localhost:3000`.
 
@@ -47,13 +58,14 @@ FRACTURE opens your browser automatically at `http://localhost:3000`.
 **Requirements:** Go 1.22+, Node.js 20+, pnpm
 
 ```bash
-git clone https://github.com/your-org/fracture
+git clone https://github.com/mkvinicius/fracture
 cd fracture
 make build   # builds dashboard + Go binary
 ./fracture   # starts the server and opens browser
 ```
 
 For development with hot reload:
+
 ```bash
 make dev
 ```
@@ -65,11 +77,30 @@ make dev
 FRACTURE uses your own AI provider keys. They are stored locally in SQLite on your machine and **never sent to any external server**.
 
 Recommended configuration:
-- **OpenAI** (GPT-4o) — Conformist agents + synthesis reports
-- **Anthropic** (Claude Sonnet) — Disruptor agents (best creativity)
-- **Google** (Gemini) — Optional third model for diversity
+
+| Provider | Model | Role |
+|----------|-------|------|
+| **OpenAI** | GPT-4o | Conformist agents + synthesis reports |
+| **Anthropic** | Claude Sonnet | Disruptor agents (best creativity) |
+| **Google** | Gemini 1.5 | Optional third model for diversity |
 
 You can also use **Ollama** for fully offline operation (no API costs).
+
+---
+
+## Privacy & Telemetry
+
+FRACTURE collects **anonymous usage data** to understand how the tool is being used and improve future versions.
+
+**What is collected:**
+- Anonymous install ID (UUID — randomly generated, never linked to you)
+- OS and architecture
+- Country (derived from IP, last octet masked)
+- FRACTURE version
+
+**What is never collected:** simulation content, API keys, company data, or any personally identifiable information.
+
+You can **opt out at any time** during the onboarding wizard or in **Settings → Privacy & Telemetry**.
 
 ---
 
@@ -84,7 +115,7 @@ fracture/
     agent.go           ← Agent interface and base types
     simulation.go      ← Main simulation loop
     voting.go          ← Weighted consensus voting
-    report.go          ← Report generation (3 output types)
+    report.go          ← Report generation (3 output types + watermark)
   archetypes/
     conformists.go     ← 8 Conformist archetypes
     disruptors.go      ← 4 Disruptor archetypes
@@ -94,6 +125,8 @@ fracture/
   security/
     sanitizer.go       ← Prompt injection protection
     hmac.go            ← HMAC signing + immutable audit log
+  telemetry/
+    telemetry.go       ← Anonymous usage tracking (opt-out)
   llm/client.go        ← LLM-agnostic client with smart routing
   db/
     db.go              ← SQLite helpers
@@ -111,8 +144,17 @@ fracture/
 - **Agent sandboxing** — agents have no access to filesystem or network
 - **Local-first** — all data stays on your machine
 
+To report a security vulnerability, see [SECURITY.md](SECURITY.md).
+
 ---
 
 ## License
 
-MIT
+FRACTURE is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
+
+This means:
+- You can use, study, and modify FRACTURE freely
+- If you distribute a modified version (including running it as a network service), you must release the source code under the same license
+- Commercial use requires compliance with AGPL-3.0 terms
+
+© 2025 FRACTURE contributors
