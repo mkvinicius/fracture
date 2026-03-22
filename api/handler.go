@@ -1,12 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
+	"github.com/fracture/fracture/archetypes"
 	"github.com/fracture/fracture/db"
+	"github.com/fracture/fracture/engine"
+	"github.com/fracture/fracture/llm"
+	"github.com/fracture/fracture/memory"
 	"github.com/fracture/fracture/security"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // Handler holds all API dependencies.
@@ -15,6 +24,21 @@ type Handler struct {
 	signer      *security.Signer
 	sanitizer   *security.Sanitizer
 	auditLogger *security.AuditLogger
+
+	// simulation state (in-memory for MVP; persisted to DB)
+	simMu   sync.RWMutex
+	simJobs map[string]*simJob
+}
+
+type simJob struct {
+	ID         string `json:"id"`
+	Status     string `json:"status"` // queued | running | done | error
+	Question   string `json:"question"`
+	Department string `json:"department"`
+	Rounds     int    `json:"rounds"`
+	CreatedAt  int64  `json:"created_at"`
+	DurationMs int64  `json:"duration_ms,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 // NewHandler creates a new API Handler.
@@ -29,6 +53,7 @@ func NewHandler(
 		signer:      signer,
 		sanitizer:   sanitizer,
 		auditLogger: auditLogger,
+		simJobs:     make(map[string]*simJob),
 	}
 }
 
@@ -52,30 +77,32 @@ func (h *Handler) Routes() http.Handler {
 	// LLM key validation
 	r.Post("/keys/validate", h.validateKey)
 
-	// Simulations
+	// Simulations — full implementation
 	r.Post("/simulations", h.createSimulation)
 	r.Get("/simulations", h.listSimulations)
 	r.Get("/simulations/{id}", h.getSimulation)
 	r.Get("/simulations/{id}/stream", h.streamSimulation) // SSE
 	r.Delete("/simulations/{id}", h.deleteSimulation)
 
-	// Results
+	// Results & feedback
 	r.Get("/simulations/{id}/results", h.getResults)
-
-	// Feedback
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
+
+	// Quick pulse (fast tension check, no full simulation)
+	r.Post("/pulse", h.quickPulse)
 
 	// Templates
 	r.Get("/templates", h.listTemplates)
 	r.Get("/templates/{id}", h.getTemplate)
 
-	// Archetypes
+	// Archetypes — returns built-in list
 	r.Get("/archetypes", h.listArchetypes)
 	r.Post("/archetypes", h.createArchetype)
 	r.Put("/archetypes/{id}", h.updateArchetype)
 
-	// Rules
+	// Rules — returns world rules per domain
 	r.Get("/rules", h.listRules)
+	r.Get("/rules/{domain}", h.listRulesByDomain)
 	r.Post("/rules", h.createRule)
 	r.Put("/rules/{id}", h.updateRule)
 
@@ -178,14 +205,12 @@ func (h *Handler) validateKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize key before storing
 	cleanKey, err := h.sanitizer.Sanitize(r.Context(), body.Key)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid key format")
 		return
 	}
 
-	// Store key (encrypted in production; plaintext for MVP)
 	configKey := body.Provider + "_api_key"
 	if err := h.db.SetConfig(configKey, cleanKey); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save key")
@@ -200,50 +225,415 @@ func (h *Handler) validateKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"valid": true})
 }
 
-// ─── Simulations (stubs — full implementation in simulation.go) ──────────────
+// ─── Simulations ─────────────────────────────────────────────────────────────
 
 func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusAccepted, map[string]string{"status": "queued"})
+	var body struct {
+		Question   string `json:"question"`
+		Department string `json:"department"`
+		Rounds     int    `json:"rounds"`
+		Context    string `json:"context"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if body.Question == "" {
+		writeError(w, http.StatusBadRequest, "question is required")
+		return
+	}
+	if body.Rounds <= 0 {
+		body.Rounds = 20
+	}
+	if body.Department == "" {
+		body.Department = "market"
+	}
+
+	// Sanitize inputs
+	cleanQ, err := h.sanitizer.Sanitize(r.Context(), body.Question)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "question contains invalid content")
+		return
+	}
+	cleanCtx, _ := h.sanitizer.Sanitize(r.Context(), body.Context)
+
+	job := &simJob{
+		ID:         uuid.New().String(),
+		Status:     "queued",
+		Question:   cleanQ,
+		Department: body.Department,
+		Rounds:     body.Rounds,
+		CreatedAt:  time.Now().Unix(),
+	}
+
+	h.simMu.Lock()
+	h.simJobs[job.ID] = job
+	h.simMu.Unlock()
+
+	// Run simulation asynchronously
+	go h.runSimulation(job, cleanCtx)
+
+	_ = h.auditLogger.Log("simulation.created", job.ID, map[string]interface{}{
+		"question": cleanQ, "department": body.Department, "rounds": body.Rounds,
+	})
+
+	writeJSON(w, http.StatusAccepted, map[string]string{"id": job.ID, "status": "queued"})
+}
+
+func (h *Handler) runSimulation(job *simJob, extraContext string) {
+	h.simMu.Lock()
+	job.Status = "running"
+	h.simMu.Unlock()
+
+	// Build LLM router from stored keys
+	router, err := h.buildLLMRouter()
+	if err != nil {
+		h.simMu.Lock()
+		job.Status = "error"
+		job.Error = "no LLM keys configured — add at least one API key in Settings"
+		h.simMu.Unlock()
+		return
+	}
+
+	// Build world from department domain
+	domain := engine.RuleDomain(job.Department)
+	world := engine.DefaultWorldForDomain(domain, job.Question, extraContext)
+
+	// Build agents
+	conformistLLM := router.ForRole(llm.RoleConformist)
+	disruptorLLM := router.ForRole(llm.RoleDisruptor)
+	agents := append(
+		archetypes.BuiltinConformists(conformistLLM),
+		archetypes.BuiltinDisruptors(disruptorLLM)...,
+	)
+
+	// Build memory store
+	memStore := memory.NewStore(h.db.DB)
+
+	cfg := engine.SimulationConfig{
+		ID:         job.ID,
+		Question:   job.Question,
+		Department: job.Department,
+		MaxRounds:  job.Rounds,
+		Agents:     agents,
+		World:      world,
+		Memory:     memStore,
+	}
+
+	sim := engine.NewSimulation(cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	// Drain the round channel
+	for range sim.Run(ctx) {
+		// rounds are collected internally by Finalize()
+	}
+
+	result := sim.Finalize()
+
+	// Generate final report
+	synthesisLLM := router.ForRole(llm.RoleSynthesis)
+	rg := engine.NewReportGenerator(synthesisLLM)
+	report, reportErr := rg.GenerateReport(ctx, &result, job.Question)
+
+	var finalData interface{}
+	var durationMs int64
+	if reportErr == nil && report != nil {
+		finalData = report
+		durationMs = report.DurationMs
+	} else {
+		finalData = &result
+		durationMs = result.DurationMs
+	}
+
+	h.simMu.Lock()
+	job.Status = "done"
+	job.DurationMs = durationMs
+	h.simMu.Unlock()
+
+	// Persist to DB
+	_ = h.db.SaveSimulation(job.ID, job.Question, job.Department, job.Rounds, finalData)
+	_ = h.auditLogger.Log("simulation.completed", job.ID, map[string]interface{}{
+		"duration_ms": durationMs,
+		"tokens":      result.TotalTokens,
+		"fractures":   len(result.FractureEvents),
+	})
 }
 
 func (h *Handler) listSimulations(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []interface{}{})
+	// Return in-memory jobs + DB history
+	h.simMu.RLock()
+	jobs := make([]*simJob, 0, len(h.simJobs))
+	for _, j := range h.simJobs {
+		jobs = append(jobs, j)
+	}
+	h.simMu.RUnlock()
+
+	// Also load from DB
+	dbSims, _ := h.db.ListSimulations()
+	type simSummary struct {
+		ID         string `json:"id"`
+		Status     string `json:"status"`
+		Question   string `json:"question"`
+		Department string `json:"department"`
+		Rounds     int    `json:"rounds"`
+		CreatedAt  int64  `json:"created_at"`
+		DurationMs int64  `json:"duration_ms,omitempty"`
+	}
+
+	seen := map[string]bool{}
+	var result []simSummary
+	for _, j := range jobs {
+		seen[j.ID] = true
+		result = append(result, simSummary{
+			ID: j.ID, Status: j.Status, Question: j.Question,
+			Department: j.Department, Rounds: j.Rounds,
+			CreatedAt: j.CreatedAt, DurationMs: j.DurationMs,
+		})
+	}
+	for _, s := range dbSims {
+		if !seen[s.ID] {
+			result = append(result, simSummary{
+				ID: s.ID, Status: "done", Question: s.Question,
+				Department: s.Department, Rounds: s.Rounds,
+				CreatedAt: s.CreatedAt, DurationMs: s.DurationMs,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) getSimulation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	writeJSON(w, http.StatusOK, map[string]string{"id": id})
+	h.simMu.RLock()
+	job, ok := h.simJobs[id]
+	h.simMu.RUnlock()
+	if ok {
+		writeJSON(w, http.StatusOK, job)
+		return
+	}
+	// Try DB
+	sim, err := h.db.GetSimulation(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "simulation not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, sim)
 }
 
 func (h *Handler) streamSimulation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.After(12 * time.Minute)
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-timeout:
+			fmt.Fprintf(w, "event: timeout\ndata: {}\n\n")
+			flusher.Flush()
+			return
+		case <-ticker.C:
+			h.simMu.RLock()
+			job, ok := h.simJobs[id]
+			h.simMu.RUnlock()
+			if !ok {
+				fmt.Fprintf(w, "event: error\ndata: {\"error\":\"not found\"}\n\n")
+				flusher.Flush()
+				return
+			}
+			b, _ := json.Marshal(job)
+			fmt.Fprintf(w, "event: update\ndata: %s\n\n", b)
+			flusher.Flush()
+			if job.Status == "done" || job.Status == "error" {
+				return
+			}
+		}
+	}
 }
 
 func (h *Handler) deleteSimulation(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	h.simMu.Lock()
+	delete(h.simJobs, id)
+	h.simMu.Unlock()
+	_ = h.db.DeleteSimulation(id)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (h *Handler) getResults(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{})
+	id := chi.URLParam(r, "id")
+	// Results are always fetched from DB (persisted after simulation completes)
+	sim, err := h.db.GetSimulation(id)
+	if err != nil {
+		// Check if still running in memory
+		h.simMu.RLock()
+		job, ok := h.simJobs[id]
+		h.simMu.RUnlock()
+		if ok {
+			writeJSON(w, http.StatusOK, map[string]string{"status": job.Status, "id": job.ID})
+			return
+		}
+		writeError(w, http.StatusNotFound, "results not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, sim)
 }
 
 func (h *Handler) submitFeedback(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		Outcome string `json:"outcome"` // accurate | inaccurate | partial
+		Notes   string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if err := h.db.SaveFeedback(id, body.Outcome, body.Notes); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save feedback")
+		return
+	}
+	_ = h.auditLogger.Log("feedback.submitted", id, map[string]string{"outcome": body.Outcome})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// ─── Quick Pulse ─────────────────────────────────────────────────────────────
+
+func (h *Handler) quickPulse(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Situation string `json:"situation"`
+		Domain    string `json:"domain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if body.Situation == "" {
+		writeError(w, http.StatusBadRequest, "situation is required")
+		return
+	}
+
+	cleanSit, err := h.sanitizer.Sanitize(r.Context(), body.Situation)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "situation contains invalid content")
+		return
+	}
+
+	router, err := h.buildLLMRouter()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "no LLM keys configured")
+		return
+	}
+
+	// Use conformist role for pulse — it falls back to the available provider
+	caller := router.ForRole(llm.RoleConformist)
+	systemPrompt := `You are a rapid market tension analyst. Given a business situation, output a JSON object with:
+- score: integer 0-100 (0=no tension, 100=maximum disruption risk)
+- level: "low" | "medium" | "high" | "critical"
+- summary: one sentence explaining the tension
+- top_risks: array of 3 strings, each a specific risk
+Respond with JSON only.`
+
+	userPrompt := fmt.Sprintf("Domain: %s\nSituation: %s", body.Domain, cleanSit)
+
+	raw, _, err := caller.Call(r.Context(), systemPrompt, userPrompt, 400)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "LLM call failed: "+err.Error())
+		return
+	}
+
+	var pulse map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &pulse); err != nil {
+		pulse = map[string]interface{}{
+			"score":    50,
+			"level":    "medium",
+			"summary":  raw,
+			"top_risks": []string{},
+		}
+	}
+	writeJSON(w, http.StatusOK, pulse)
+}
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+
 func (h *Handler) listTemplates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []interface{}{})
+	templates := []map[string]interface{}{
+		{"id": "competitor-free-tier", "name": "Competitor launches free tier", "domain": "market", "rounds": 20,
+			"question": "What happens if a major competitor launches a free tier targeting our core customers?"},
+		{"id": "ai-disruption", "name": "AI disrupts our core product", "domain": "technology", "rounds": 20,
+			"question": "How would AI automation affect our product category in the next 18 months?"},
+		{"id": "regulation-change", "name": "New regulation in our sector", "domain": "regulation", "rounds": 15,
+			"question": "What if new data privacy regulation requires us to change our business model?"},
+		{"id": "price-increase", "name": "We raise prices by 30%", "domain": "market", "rounds": 10,
+			"question": "What is the market reaction if we raise prices by 30% next quarter?"},
+		{"id": "talent-war", "name": "Talent war in our sector", "domain": "behavior", "rounds": 15,
+			"question": "How will the talent shortage in our sector evolve and what rules will change?"},
+		{"id": "new-entrant", "name": "Well-funded new entrant", "domain": "market", "rounds": 20,
+			"question": "A well-funded startup enters our market with a radically different approach. What happens?"},
+	}
+	writeJSON(w, http.StatusOK, templates)
 }
 
 func (h *Handler) getTemplate(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{})
+	id := chi.URLParam(r, "id")
+	templates := map[string]map[string]interface{}{
+		"competitor-free-tier": {"id": "competitor-free-tier", "name": "Competitor launches free tier", "domain": "market", "rounds": 20,
+			"question": "What happens if a major competitor launches a free tier targeting our core customers?"},
+		"ai-disruption": {"id": "ai-disruption", "name": "AI disrupts our core product", "domain": "technology", "rounds": 20,
+			"question": "How would AI automation affect our product category in the next 18 months?"},
+	}
+	t, ok := templates[id]
+	if !ok {
+		writeError(w, http.StatusNotFound, "template not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
 }
 
+// ─── Archetypes ──────────────────────────────────────────────────────────────
+
 func (h *Handler) listArchetypes(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []interface{}{})
+	// Return built-in archetype metadata (no LLM needed)
+	type archetypeMeta struct {
+		ID          string   `json:"id"`
+		Name        string   `json:"name"`
+		Type        string   `json:"type"`
+		Role        string   `json:"role"`
+		Traits      []string `json:"traits"`
+		PowerWeight float64  `json:"power_weight"`
+	}
+
+	list := []archetypeMeta{
+		// Conformists
+		{ID: "pragmatist", Name: "The Pragmatist", Type: "conformist", Role: "Mid-level manager", Traits: []string{"data-driven", "risk-averse", "process-oriented"}, PowerWeight: 0.7},
+		{ID: "loyalist", Name: "The Loyalist", Type: "conformist", Role: "Long-term customer", Traits: []string{"brand-loyal", "resistant to change", "word-of-mouth"}, PowerWeight: 0.6},
+		{ID: "analyst", Name: "The Analyst", Type: "conformist", Role: "Industry analyst", Traits: []string{"evidence-based", "conservative", "benchmark-focused"}, PowerWeight: 0.8},
+		{ID: "opportunist", Name: "The Opportunist", Type: "conformist", Role: "Competitor executive", Traits: []string{"market-watching", "fast-follower", "profit-driven"}, PowerWeight: 0.75},
+		{ID: "traditionalist", Name: "The Traditionalist", Type: "conformist", Role: "Regulator / policy maker", Traits: []string{"rule-enforcing", "slow-moving", "stability-focused"}, PowerWeight: 0.65},
+		{ID: "regulator", Name: "The Regulator", Type: "conformist", Role: "Compliance officer", Traits: []string{"risk-averse", "rule-based", "conservative"}, PowerWeight: 0.7},
+		{ID: "consumer", Name: "The Consumer", Type: "conformist", Role: "End user / customer", Traits: []string{"value-seeking", "convenience-driven", "price-sensitive"}, PowerWeight: 0.55},
+		{ID: "investor", Name: "The Investor", Type: "conformist", Role: "Institutional investor", Traits: []string{"ROI-focused", "long-term", "risk-calibrated"}, PowerWeight: 0.85},
+		// Disruptors
+		{ID: "visionary", Name: "The Visionary", Type: "disruptor", Role: "Startup founder", Traits: []string{"contrarian", "first-principles", "high-risk tolerance"}, PowerWeight: 0.9},
+		{ID: "rebel", Name: "The Rebel", Type: "disruptor", Role: "Activist / whistleblower", Traits: []string{"anti-establishment", "viral", "unpredictable"}, PowerWeight: 0.7},
+		{ID: "tech-accelerator", Name: "The Tech Accelerator", Type: "disruptor", Role: "AI/tech researcher", Traits: []string{"exponential thinking", "automation-first", "impatient"}, PowerWeight: 0.85},
+		{ID: "arbitrageur", Name: "The Arbitrageur", Type: "disruptor", Role: "Financial disruptor", Traits: []string{"gap-finder", "speed-focused", "asymmetric bets"}, PowerWeight: 0.8},
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 func (h *Handler) createArchetype(w http.ResponseWriter, r *http.Request) {
@@ -254,8 +644,25 @@ func (h *Handler) updateArchetype(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// ─── Rules ───────────────────────────────────────────────────────────────────
+
 func (h *Handler) listRules(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []interface{}{})
+	world := engine.DefaultWorldForDomain("market", "", "")
+	rules := make([]*engine.Rule, 0, len(world.Rules))
+	for _, r := range world.Rules {
+		rules = append(rules, r)
+	}
+	writeJSON(w, http.StatusOK, rules)
+}
+
+func (h *Handler) listRulesByDomain(w http.ResponseWriter, r *http.Request) {
+	domain := chi.URLParam(r, "domain")
+	world := engine.DefaultWorldForDomain(engine.RuleDomain(domain), "", "")
+	rules := make([]*engine.Rule, 0, len(world.Rules))
+	for _, rule := range world.Rules {
+		rules = append(rules, rule)
+	}
+	writeJSON(w, http.StatusOK, rules)
 }
 
 func (h *Handler) createRule(w http.ResponseWriter, r *http.Request) {
@@ -266,8 +673,78 @@ func (h *Handler) updateRule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
 func (h *Handler) getAuditLog(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, []interface{}{})
+	logs, err := h.db.GetAuditLog(50)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []interface{}{})
+		return
+	}
+	writeJSON(w, http.StatusOK, logs)
+}
+
+// ─── LLM Router Builder ──────────────────────────────────────────────────────
+
+func (h *Handler) buildLLMRouter() (*llm.Router, error) {
+	cfg := llm.DefaultRouterConfig()
+
+	openaiKey, _ := h.db.GetConfig("openai_api_key")
+	anthropicKey, _ := h.db.GetConfig("anthropic_api_key")
+	googleKey, _ := h.db.GetConfig("google_api_key")
+	ollamaEnabled, _ := h.db.GetConfig("ollama_enabled")
+
+	hasAny := false
+
+	if openaiKey != "" {
+		cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "openai", Model: "gpt-4o-mini", APIKey: openaiKey}
+		cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "openai", Model: "gpt-4o", APIKey: openaiKey}
+		hasAny = true
+	}
+	if anthropicKey != "" {
+		cfg[llm.RoleSynthesis] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-sonnet-20241022", APIKey: anthropicKey}
+		cfg[llm.RoleSanitizer] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-haiku-20241022", APIKey: anthropicKey}
+		if !hasAny {
+			cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-haiku-20241022", APIKey: anthropicKey}
+			cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "anthropic", Model: "claude-3-5-sonnet-20241022", APIKey: anthropicKey}
+		}
+		hasAny = true
+	}
+	if googleKey != "" {
+		cfg[llm.RoleCoherence] = llm.ModelConfig{Provider: "google", Model: "gemini-1.5-flash", APIKey: googleKey}
+		if !hasAny {
+			cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "google", Model: "gemini-1.5-flash", APIKey: googleKey}
+			cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "google", Model: "gemini-1.5-pro", APIKey: googleKey}
+		}
+		hasAny = true
+	}
+	if ollamaEnabled == "true" {
+		ollamaModel, _ := h.db.GetConfig("ollama_model")
+		if ollamaModel == "" {
+			ollamaModel = "llama3"
+		}
+		cfg[llm.RoleConformist] = llm.ModelConfig{Provider: "ollama", Model: ollamaModel}
+		cfg[llm.RoleDisruptor] = llm.ModelConfig{Provider: "ollama", Model: ollamaModel}
+		cfg[llm.RoleSynthesis] = llm.ModelConfig{Provider: "ollama", Model: ollamaModel}
+		cfg[llm.RoleCoherence] = llm.ModelConfig{Provider: "ollama", Model: ollamaModel}
+		hasAny = true
+	}
+
+	if !hasAny {
+		return nil, fmt.Errorf("no LLM keys configured")
+	}
+
+	// Fill any missing roles with the first available
+	for _, role := range []llm.ModelRole{llm.RoleConformist, llm.RoleDisruptor, llm.RoleSynthesis, llm.RoleCoherence, llm.RoleSanitizer} {
+		if _, ok := cfg[role]; !ok {
+			// Use conformist as fallback
+			if c, ok2 := cfg[llm.RoleConformist]; ok2 {
+				cfg[role] = c
+			}
+		}
+	}
+
+	return llm.NewRouter(cfg), nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

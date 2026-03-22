@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,6 +74,8 @@ func Open() (*DB, error) {
 	return &DB{sqlDB}, nil
 }
 
+// ─── Config ──────────────────────────────────────────────────────────────────
+
 // GetConfig retrieves a config value by key.
 func (d *DB) GetConfig(key string) (string, error) {
 	var value string
@@ -100,4 +103,118 @@ func (d *DB) IsOnboarded() (bool, error) {
 		return false, err
 	}
 	return val == "true", nil
+}
+
+// ─── Simulations ─────────────────────────────────────────────────────────────
+
+// SimulationRow is a lightweight DB row for listing simulations.
+type SimulationRow struct {
+	ID         string `json:"id"`
+	Question   string `json:"question"`
+	Department string `json:"department"`
+	Rounds     int    `json:"rounds"`
+	CreatedAt  int64  `json:"created_at"`
+	DurationMs int64  `json:"duration_ms"`
+	ResultJSON string `json:"-"`
+}
+
+// SaveSimulation persists a completed simulation result to the database.
+func (d *DB) SaveSimulation(id, question, department string, rounds int, result interface{}) error {
+	b, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	_, err = d.Exec(`
+		INSERT INTO simulations (id, question, department, rounds, result_json, created_at)
+		VALUES (?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(id) DO UPDATE SET result_json = excluded.result_json
+	`, id, question, department, rounds, string(b))
+	return err
+}
+
+// ListSimulations returns a summary list of all simulations from the DB.
+func (d *DB) ListSimulations() ([]SimulationRow, error) {
+	rows, err := d.Query(`
+		SELECT id, question, department, rounds, created_at,
+		       COALESCE(json_extract(result_json, '$.duration_ms'), 0)
+		FROM simulations ORDER BY created_at DESC LIMIT 100
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []SimulationRow
+	for rows.Next() {
+		var r SimulationRow
+		if err := rows.Scan(&r.ID, &r.Question, &r.Department, &r.Rounds, &r.CreatedAt, &r.DurationMs); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, nil
+}
+
+// GetSimulation returns the full result JSON for a simulation.
+func (d *DB) GetSimulation(id string) (*SimulationRow, error) {
+	var r SimulationRow
+	err := d.QueryRow(`
+		SELECT id, question, department, rounds, created_at,
+		       COALESCE(json_extract(result_json, '$.duration_ms'), 0),
+		       COALESCE(result_json, '{}')
+		FROM simulations WHERE id = ?
+	`, id).Scan(&r.ID, &r.Question, &r.Department, &r.Rounds, &r.CreatedAt, &r.DurationMs, &r.ResultJSON)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// DeleteSimulation removes a simulation from the DB.
+func (d *DB) DeleteSimulation(id string) error {
+	_, err := d.Exec(`DELETE FROM simulations WHERE id = ?`, id)
+	return err
+}
+
+// SaveFeedback stores user feedback for a simulation.
+func (d *DB) SaveFeedback(simulationID, outcome, notes string) error {
+	_, err := d.Exec(`
+		INSERT INTO feedback (simulation_id, outcome, notes, created_at)
+		VALUES (?, ?, ?, unixepoch())
+		ON CONFLICT(simulation_id) DO UPDATE SET outcome = excluded.outcome, notes = excluded.notes
+	`, simulationID, outcome, notes)
+	return err
+}
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+// AuditRow is a single audit log entry.
+type AuditRow struct {
+	ID        int64  `json:"id"`
+	Event     string `json:"event"`
+	Actor     string `json:"actor"`
+	Payload   string `json:"payload"`
+	CreatedAt int64  `json:"created_at"`
+}
+
+// GetAuditLog returns the most recent N audit log entries.
+func (d *DB) GetAuditLog(limit int) ([]AuditRow, error) {
+	rows, err := d.Query(`
+		SELECT id, event_type, entity_id, COALESCE(payload, '{}'), created_at
+		FROM audit_log ORDER BY created_at DESC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []AuditRow
+	for rows.Next() {
+		var r AuditRow
+		if err := rows.Scan(&r.ID, &r.Event, &r.Actor, &r.Payload, &r.CreatedAt); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, nil
 }

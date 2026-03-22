@@ -91,8 +91,8 @@ func (a *AuditLogger) Log(eventType, entityID string, payload interface{}) error
 	a.prevSig = sig
 
 	_, err = a.db.Exec(`
-		INSERT INTO audit_log (event_type, entity_id, payload, hmac_sig, created_at)
-		VALUES (?, ?, ?, ?, unixepoch())
-	`, eventType, entityID, string(payloadJSON), sig)
+			INSERT INTO audit_log (event_type, entity_id, payload, hmac_sig, created_at)
+			VALUES (?, ?, ?, ?, unixepoch())
+		`, eventType, entityID, string(payloadJSON), sig)
 	return err
 }
