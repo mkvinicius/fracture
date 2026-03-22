@@ -15,6 +15,7 @@ import (
 	"github.com/fracture/fracture/api"
 	"github.com/fracture/fracture/db"
 	"github.com/fracture/fracture/security"
+	"github.com/fracture/fracture/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
@@ -36,6 +37,15 @@ func main() {
 	}
 	defer database.Close()
 	log.Info().Msg("database ready")
+
+	// ── Telemetria (opt-in anônima) ──────────────────────────────────────────
+	telemetryURL, _ := database.GetConfig("telemetry_url")
+	dataDir, _ := db.DataDir()
+	tel := telemetry.New(dataDir, telemetryURL, "1.0.0")
+	if tel.IsEnabled() {
+		tel.SendPing()
+		log.Info().Msg("telemetry ping sent (opt-in enabled)")
+	}
 
 	// ── Security ────────────────────────────────────────────────────────────
 	signerSecret := []byte(getOrGenerateSecret(database))
