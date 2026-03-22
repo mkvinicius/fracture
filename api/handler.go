@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/fracture/fracture/archetypes"
+	"github.com/fracture/fracture/contextextractor"
 	"github.com/fracture/fracture/db"
 	"github.com/fracture/fracture/engine"
 	"github.com/fracture/fracture/llm"
 	"github.com/fracture/fracture/memory"
 	"github.com/fracture/fracture/security"
 	"github.com/fracture/fracture/telemetry"
+	"github.com/fracture/fracture/updater"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -118,13 +120,90 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/telemetry", h.getTelemetry)
 	r.Post("/telemetry", h.setTelemetry)
 
+	// Update check
+	r.Get("/update-check", h.checkForUpdate)
+
+	// Context extraction from URLs
+	r.Post("/extract-context", h.extractContext)
+
 	return r
 }
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": "1.0.0"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": updater.CurrentVersion})
+}
+
+// ─── Update Check ─────────────────────────────────────────────────────────────
+
+func (h *Handler) checkForUpdate(w http.ResponseWriter, r *http.Request) {
+	result, err := updater.CheckForUpdate()
+	if err != nil {
+		// Don't fail — just return current version with no update
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"has_update":      false,
+			"current_version": updater.CurrentVersion,
+			"error":           err.Error(),
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"has_update":      result.HasUpdate,
+		"current_version": result.CurrentVersion,
+		"latest_version":  result.LatestVersion,
+		"release_url":     result.ReleaseURL,
+		"release_name":    result.ReleaseName,
+		"release_notes":   result.ReleaseNotes,
+	})
+}
+
+// ─── Context Extraction ───────────────────────────────────────────────────────
+
+func (h *Handler) extractContext(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		URLs []string `json:"urls"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if len(body.URLs) == 0 {
+		writeError(w, http.StatusBadRequest, "urls array is required")
+		return
+	}
+	if len(body.URLs) > 10 {
+		body.URLs = body.URLs[:10] // max 10 URLs
+	}
+
+	ctx := contextextractor.ExtractFromURLs(body.URLs)
+
+	type sourceResult struct {
+		URL        string `json:"url"`
+		SourceType string `json:"source_type"`
+		Title      string `json:"title"`
+		Description string `json:"description"`
+		Content    string `json:"content"`
+		Error      string `json:"error,omitempty"`
+	}
+
+	var sources []sourceResult
+	for _, s := range ctx.Sources {
+		sources = append(sources, sourceResult{
+			URL:         s.URL,
+			SourceType:  string(s.SourceType),
+			Title:       s.Title,
+			Description: s.Description,
+			Content:     s.Content,
+			Error:       s.Error,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"sources": sources,
+		"summary": ctx.Summary,
+		"has_errors": ctx.HasErrors,
+	})
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -238,10 +317,11 @@ func (h *Handler) validateKey(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Question   string `json:"question"`
-		Department string `json:"department"`
-		Rounds     int    `json:"rounds"`
-		Context    string `json:"context"`
+		Question   string   `json:"question"`
+		Department string   `json:"department"`
+		Rounds     int      `json:"rounds"`
+		Context    string   `json:"context"`
+		URLs       []string `json:"urls"` // optional: company website + social media URLs
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -265,6 +345,18 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cleanCtx, _ := h.sanitizer.Sanitize(r.Context(), body.Context)
+
+	// If URLs provided, extract context automatically and prepend to context
+	if len(body.URLs) > 0 && len(body.URLs) <= 10 {
+		extracted := contextextractor.ExtractFromURLs(body.URLs)
+		if extracted.Summary != "" {
+			if cleanCtx != "" {
+				cleanCtx = extracted.Summary + "\n\n" + cleanCtx
+			} else {
+				cleanCtx = extracted.Summary
+			}
+		}
+	}
 
 	job := &simJob{
 		ID:         uuid.New().String(),
