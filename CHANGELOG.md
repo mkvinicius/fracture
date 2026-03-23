@@ -1,0 +1,56 @@
+# CHANGELOG
+
+All notable changes to FRACTURE are documented in this file.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+---
+
+## [1.5.0] — 2025-03-23
+
+### Fixed
+- **Version consistency** — internal telemetry and updater now correctly report `1.5.0`; previously the binary self-reported `1.0.0` in some code paths.
+- **`openBrowser` now opens the real browser** — replaced the stub that only logged the URL with platform-specific implementations using `os/exec` (`xdg-open` on Linux, `open` on macOS, `cmd /c start` on Windows).
+- **HMAC secret generation uses `crypto/rand`** — replaced `time.Now().UnixNano()` seed (predictable) with 32 bytes of cryptographically secure randomness.
+
+### Added
+- **Persistent simulation job state** — introduced `simulation_jobs` table in SQLite. Every status transition (`queued → researching → running → done/error`) is now written to the database immediately, so the UI correctly reflects job state after a process restart.
+- **Startup resilience** — `NewHandler` calls `MarkInterruptedJobsFailed()` at boot and re-hydrates the in-memory map from the DB, so no job is silently lost across restarts.
+- **Structured HTML parsing in context extractor** — replaced fragile regex-only stripping with `golang.org/x/net/html` tree walker. Correctly skips `<script>`, `<style>`, `<nav>`, `<footer>`, `<header>`, `<noscript>`, `<iframe>`, `<svg>`, `<form>` and other noise elements.
+- **Per-URL timeout and retry in context extractor** — each URL now has a 12-second context deadline and up to 2 retries with exponential backoff (500 ms, 1 s) for transient network errors. HTTP 4xx/5xx errors are not retried.
+- **Social network graceful degradation** — LinkedIn, Instagram, Twitter/X, and Facebook URLs that return login walls or bot blocks are flagged as `Limited: true` in the extracted context, with a clear message injected into the LLM prompt instead of a silent empty string.
+- **HTML entity decoding via stdlib** — uses `html.UnescapeString` (standard library) for correct decoding of `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`, `&nbsp;` and all numeric entities.
+- **13 new DB tests** — full coverage of `UpsertJob`, `GetJob`, `ListJobs`, `DeleteJob`, `MarkInterruptedJobsFailed`, `SetConfig`, `GetConfig`, `SaveSimulation`, `GetSimulation`, `ListSimulations`, `DeleteSimulation`.
+- **17 new extractor tests** — covers HTML node extraction, title/meta parsing, script stripping, truncation, HTTP success/404/500, URL normalization, concurrent extraction, race detection, social network limited flag, and `cleanRawText` fallback.
+
+### Changed
+- `go.mod` toolchain upgraded to Go 1.25.0 (required by `golang.org/x/net v0.52.0`).
+- `deleteSimulation` handler now also removes the corresponding row from `simulation_jobs` to keep both tables in sync.
+- Test count: **20 → 33 passing**.
+
+---
+
+## [1.4.1] — 2025-03-20
+
+### Added
+- DeepSearch integration: 32 agents now receive real-world market context before simulation begins.
+- Import of up to 10 external URLs (company website, LinkedIn, Instagram, Twitter/X, Facebook, YouTube) as simulation context.
+- 6-part structured report: Executive Summary, Fracture Scenarios, Strategic Recommendations, Market Dynamics, Risk Matrix, Action Plan.
+- Audit log with HMAC-signed entries for tamper detection.
+- Archetype calibration table for feedback-driven accuracy improvement.
+
+### Changed
+- Agent count increased from 20 to 32 (20 conformists + 12 disruptors).
+- Simulation rounds increased to 40.
+- Report generator now uses a dedicated synthesis LLM role.
+
+---
+
+## [1.0.0] — 2025-02-01
+
+### Added
+- Initial public release.
+- Local-first simulation engine with SQLite persistence.
+- 20 agents (conformists and disruptors) across 7 market domains.
+- Basic report generation.
+- Manus OAuth-free desktop mode (no cloud dependency).
+- Auto-updater via GitHub Releases.

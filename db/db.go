@@ -176,6 +176,105 @@ func (d *DB) DeleteSimulation(id string) error {
 	return err
 }
 
+// ─── Simulation Jobs (persistent job state) ───────────────────────────────────────────────────
+
+// JobRow mirrors the simulation_jobs table.
+type JobRow struct {
+	ID              string `json:"id"`
+	Status          string `json:"status"`
+	Question        string `json:"question"`
+	Department      string `json:"department"`
+	Rounds          int    `json:"rounds"`
+	Company         string `json:"company,omitempty"`
+	Error           string `json:"error,omitempty"`
+	ResearchSources int    `json:"research_sources,omitempty"`
+	ResearchTokens  int    `json:"research_tokens,omitempty"`
+	DurationMs      int64  `json:"duration_ms,omitempty"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
+}
+
+// UpsertJob creates or updates a job row (called on every status transition).
+func (d *DB) UpsertJob(j *JobRow) error {
+	_, err := d.Exec(`
+		INSERT INTO simulation_jobs
+			(id, status, question, department, rounds, company, error_msg,
+			 research_sources, research_tokens, duration_ms, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(id) DO UPDATE SET
+			status           = excluded.status,
+			error_msg        = excluded.error_msg,
+			research_sources = excluded.research_sources,
+			research_tokens  = excluded.research_tokens,
+			duration_ms      = excluded.duration_ms,
+			updated_at       = unixepoch()
+	`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Company, j.Error,
+		j.ResearchSources, j.ResearchTokens, j.DurationMs, j.CreatedAt)
+	return err
+}
+
+// GetJob returns a single job row by ID.
+func (d *DB) GetJob(id string) (*JobRow, error) {
+	var j JobRow
+	err := d.QueryRow(`
+		SELECT id, status, question, department, rounds, company, error_msg,
+		       research_sources, research_tokens, duration_ms, created_at, updated_at
+		FROM simulation_jobs WHERE id = ?
+	`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
+		&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
+// ListJobs returns all jobs ordered by creation time (newest first).
+func (d *DB) ListJobs() ([]JobRow, error) {
+	rows, err := d.Query(`
+		SELECT id, status, question, department, rounds, company, error_msg,
+		       research_sources, research_tokens, duration_ms, created_at, updated_at
+		FROM simulation_jobs ORDER BY created_at DESC LIMIT 200
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []JobRow
+	for rows.Next() {
+		var j JobRow
+		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
+			&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			continue
+		}
+		result = append(result, j)
+	}
+	return result, nil
+}
+
+// DeleteJob removes a job row by ID.
+func (d *DB) DeleteJob(id string) error {
+	_, err := d.Exec(`DELETE FROM simulation_jobs WHERE id = ?`, id)
+	return err
+}
+
+// MarkInterruptedJobsFailed marks any jobs that were left in non-terminal states
+// (queued/researching/running) as 'error' with a restart message.
+// Call this once at startup to ensure a clean state after an unexpected shutdown.
+func (d *DB) MarkInterruptedJobsFailed() (int, error) {
+	res, err := d.Exec(`
+		UPDATE simulation_jobs
+		SET status = 'error',
+		    error_msg = 'interrupted: process restarted before simulation completed',
+		    updated_at = unixepoch()
+		WHERE status IN ('queued', 'researching', 'running')
+	`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // SaveFeedback stores user feedback for a simulation.
 func (d *DB) SaveFeedback(simulationID, outcome, notes string) error {
 	_, err := d.Exec(`

@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/fracture/fracture/db"
 	"github.com/fracture/fracture/security"
 	"github.com/fracture/fracture/telemetry"
+	"github.com/fracture/fracture/updater"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog"
@@ -28,7 +33,7 @@ var dashboardFS embed.FS
 func main() {
 	// ── Logger ──────────────────────────────────────────────────────────────
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
-	log.Info().Msg("FRACTURE starting...")
+	log.Info().Str("version", updater.CurrentVersion).Msg("FRACTURE starting...")
 
 	// ── Database ────────────────────────────────────────────────────────────
 	database, err := db.Open()
@@ -41,7 +46,8 @@ func main() {
 	// ── Telemetria (opt-in anônima) ──────────────────────────────────────────
 	telemetryURL, _ := database.GetConfig("telemetry_url")
 	dataDir, _ := db.DataDir()
-	tel := telemetry.New(dataDir, telemetryURL, "1.0.0")
+	// Use the canonical version from updater — single source of truth
+	tel := telemetry.New(dataDir, telemetryURL, updater.CurrentVersion)
 	if tel.IsEnabled() {
 		tel.SendPing()
 		log.Info().Msg("telemetry ping sent (opt-in enabled)")
@@ -103,6 +109,8 @@ func main() {
 	go func() {
 		url := fmt.Sprintf("http://localhost:%d", port)
 		log.Info().Str("url", url).Msg("FRACTURE dashboard ready")
+		// Small delay so the server is listening before the browser opens
+		time.Sleep(300 * time.Millisecond)
 		openBrowser(url)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -134,25 +142,42 @@ func findAvailablePort(preferred int) int {
 }
 
 // getOrGenerateSecret retrieves or creates the HMAC signing secret.
+// Uses crypto/rand for cryptographically strong 256-bit secret generation.
 func getOrGenerateSecret(database *db.DB) string {
 	secret, err := database.GetConfig("hmac_secret")
 	if err != nil || secret == "" {
-		// Generate new secret
-		b := make([]byte, 32)
-		if _, err := fmt.Sscanf(fmt.Sprintf("%d", time.Now().UnixNano()), "%d", new(int64)); err == nil {
-			// Use time-based seed as fallback
+		b := make([]byte, 32) // 256-bit secret
+		if _, err := rand.Read(b); err != nil {
+			// Extremely unlikely — only if OS entropy pool is unavailable
+			log.Fatal().Err(err).Msg("failed to generate HMAC secret: crypto/rand unavailable")
 		}
-		_ = b
-		newSecret := fmt.Sprintf("fracture-%d", time.Now().UnixNano())
-		_ = database.SetConfig("hmac_secret", newSecret)
+		newSecret := hex.EncodeToString(b)
+		if err := database.SetConfig("hmac_secret", newSecret); err != nil {
+			log.Warn().Err(err).Msg("failed to persist HMAC secret")
+		}
+		log.Info().Msg("new HMAC secret generated (crypto/rand, 256-bit)")
 		return newSecret
 	}
 	return secret
 }
 
 // openBrowser opens the default browser to the given URL.
+// Supports Linux (xdg-open), macOS (open) and Windows (rundll32).
+// Non-fatal: headless/SSH environments without a browser will just log the URL.
 func openBrowser(url string) {
-	// Platform-specific open — handled by build tags in separate files
-	// For now, just log the URL
-	log.Info().Str("url", url).Msg("open this URL in your browser")
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default: // linux and others
+		cmd = exec.Command("xdg-open", url)
+	}
+	if err := cmd.Start(); err != nil {
+		// Non-fatal: headless environments (CI, SSH) won't have a browser
+		log.Info().Str("url", url).Msg("FRACTURE ready — open this URL in your browser")
+		return
+	}
+	log.Info().Str("url", url).Msg("FRACTURE dashboard opened in browser")
 }

@@ -5,10 +5,10 @@
 > **Simule como as regras do mercado quebram — e seja o primeiro a quebrá-las.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![release](https://img.shields.io/badge/release-v1.4.1-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://golang.org)
+[![release](https://img.shields.io/badge/release-v1.5.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://golang.org)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-20%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)
+[![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)
 
 ---
 
@@ -205,7 +205,7 @@ O FRACTURE abre automaticamente no navegador em `http://localhost:7432`.
 
 ### Compilar do código-fonte
 
-**Requisitos:** Go 1.22+, Node.js 20+, pnpm
+**Requisitos:** Go 1.25+, Node.js 20+, pnpm
 
 ```bash
 git clone https://github.com/mkvinicius/fracture.git

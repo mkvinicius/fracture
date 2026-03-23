@@ -31,7 +31,8 @@ type Handler struct {
 	auditLogger *security.AuditLogger
 	tel         *telemetry.Client
 
-	// simulation state (in-memory for MVP; persisted to DB)
+	// simulation state: in-memory mirror of simulation_jobs table.
+	// All mutations are written through to the DB for resilience across restarts.
 	simMu   sync.RWMutex
 	simJobs map[string]*simJob
 }
@@ -51,6 +52,8 @@ type simJob struct {
 }
 
 // NewHandler creates a new API Handler.
+// It marks any interrupted jobs as failed (resilience across restarts) and
+// re-hydrates the in-memory map from the DB so the UI sees correct state.
 func NewHandler(
 	database *db.DB,
 	signer *security.Signer,
@@ -58,7 +61,7 @@ func NewHandler(
 	auditLogger *security.AuditLogger,
 	tel *telemetry.Client,
 ) *Handler {
-	return &Handler{
+	h := &Handler{
 		db:          database,
 		signer:      signer,
 		sanitizer:   sanitizer,
@@ -66,6 +69,52 @@ func NewHandler(
 		tel:         tel,
 		simJobs:     make(map[string]*simJob),
 	}
+
+	// Mark jobs that were in-flight when the process last stopped as failed.
+	if n, err := database.MarkInterruptedJobsFailed(); err == nil && n > 0 {
+		log.Printf("[FRACTURE] marked %d interrupted job(s) as failed (process restart)", n)
+	}
+
+	// Re-hydrate in-memory map from DB so the UI sees correct state immediately.
+	if jobs, err := database.ListJobs(); err == nil {
+		for _, j := range jobs {
+			j := j // capture
+			h.simJobs[j.ID] = &simJob{
+				ID:              j.ID,
+				Status:          j.Status,
+				Question:        j.Question,
+				Department:      j.Department,
+				Rounds:          j.Rounds,
+				CreatedAt:       j.CreatedAt,
+				DurationMs:      j.DurationMs,
+				Error:           j.Error,
+				ResearchSources: j.ResearchSources,
+				ResearchTokens:  j.ResearchTokens,
+				Company:         j.Company,
+			}
+		}
+		log.Printf("[FRACTURE] re-hydrated %d job(s) from DB", len(jobs))
+	}
+
+	return h
+}
+
+// persistJob writes the current in-memory job state to the DB.
+// Must be called with simMu held (or after releasing it for the read).
+func (h *Handler) persistJob(j *simJob) {
+	_ = h.db.UpsertJob(&db.JobRow{
+		ID:              j.ID,
+		Status:          j.Status,
+		Question:        j.Question,
+		Department:      j.Department,
+		Rounds:          j.Rounds,
+		Company:         j.Company,
+		Error:           j.Error,
+		ResearchSources: j.ResearchSources,
+		ResearchTokens:  j.ResearchTokens,
+		DurationMs:      j.DurationMs,
+		CreatedAt:       j.CreatedAt,
+	})
 }
 
 // Routes returns the chi router with all API routes mounted.
@@ -371,10 +420,6 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:  time.Now().Unix(),
 	}
 
-	h.simMu.Lock()
-	h.simJobs[job.ID] = job
-	h.simMu.Unlock()
-
 	// Extract company name from saved profile (best-effort)
 	companyName := ""
 	if companyJSON, _ := h.db.GetConfig("company_json"); companyJSON != "" {
@@ -386,6 +431,11 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	job.Company = companyName
+
+	h.simMu.Lock()
+	h.simJobs[job.ID] = job
+	h.persistJob(job) // persist initial state immediately
+	h.simMu.Unlock()
 
 	// Run DeepSearch + simulation asynchronously
 	go h.runWithDeepSearch(job, cleanCtx)
@@ -403,6 +453,7 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 	// Step 1: Mark as researching
 	h.simMu.Lock()
 	job.Status = "researching"
+	h.persistJob(job)
 	h.simMu.Unlock()
 
 	// Build LLM router first (needed for DeepSearch too)
@@ -411,6 +462,7 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		h.simMu.Lock()
 		job.Status = "error"
 		job.Error = "no LLM keys configured — add at least one API key in Settings"
+		h.persistJob(job)
 		h.simMu.Unlock()
 		return
 	}
@@ -438,6 +490,7 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		h.simMu.Lock()
 		job.ResearchSources = len(contextReport.Sources)
 		job.ResearchTokens = contextReport.TokensUsed
+		h.persistJob(job)
 		h.simMu.Unlock()
 		log.Printf("[FRACTURE] DeepSearch completed for sim %s: %d sources, %d tokens",
 			job.ID, len(contextReport.Sources), contextReport.TokensUsed)
@@ -452,6 +505,7 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 func (h *Handler) runSimulation(job *simJob, extraContext string) {
 	h.simMu.Lock()
 	job.Status = "running"
+	h.persistJob(job)
 	h.simMu.Unlock()
 
 	// Build LLM router from stored keys
@@ -460,6 +514,7 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		h.simMu.Lock()
 		job.Status = "error"
 		job.Error = "no LLM keys configured — add at least one API key in Settings"
+		h.persistJob(job)
 		h.simMu.Unlock()
 		return
 	}
@@ -523,9 +578,10 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 	h.simMu.Lock()
 	job.Status = "done"
 	job.DurationMs = durationMs
+	h.persistJob(job)
 	h.simMu.Unlock()
 
-	// Persist to DB
+	// Persist full result to simulations table
 	_ = h.db.SaveSimulation(job.ID, job.Question, job.Department, job.Rounds, finalData)
 	_ = h.auditLogger.Log("simulation.completed", job.ID, map[string]interface{}{
 		"duration_ms": durationMs,
@@ -645,6 +701,7 @@ func (h *Handler) deleteSimulation(w http.ResponseWriter, r *http.Request) {
 	delete(h.simJobs, id)
 	h.simMu.Unlock()
 	_ = h.db.DeleteSimulation(id)
+	_ = h.db.DeleteJob(id) // also remove from jobs table
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
