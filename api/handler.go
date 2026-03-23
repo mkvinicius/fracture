@@ -98,6 +98,13 @@ func NewHandler(
 				ResearchSources: j.ResearchSources,
 				ResearchTokens:  j.ResearchTokens,
 				Company:         j.Company,
+				// Restore live progress from DB so SSE is accurate after restart
+				CurrentRound:    j.CurrentRound,
+				CurrentTension:  j.CurrentTension,
+				FractureCount:   j.FractureCount,
+				LastAgentName:   j.LastAgentName,
+				LastAgentAction: j.LastAgentAction,
+				TotalTokens:     j.TotalTokens,
 			}
 		}
 		log.Printf("[FRACTURE] re-hydrated %d job(s) from DB", len(jobs))
@@ -121,6 +128,13 @@ func (h *Handler) persistJob(j *simJob) {
 		ResearchTokens:  j.ResearchTokens,
 		DurationMs:      j.DurationMs,
 		CreatedAt:       j.CreatedAt,
+		// Live progress fields — persisted so they survive a restart
+		CurrentRound:    j.CurrentRound,
+		CurrentTension:  j.CurrentTension,
+		FractureCount:   j.FractureCount,
+		LastAgentName:   j.LastAgentName,
+		LastAgentAction: j.LastAgentAction,
+		TotalTokens:     j.TotalTokens,
 	})
 }
 
@@ -562,12 +576,19 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 
 	result := sim.Finalize()
 
-	// Generate final report
+	// Generate final report — tracked in report_generations table
 	synthesisLLM := router.ForRole(llm.RoleSynthesis)
 	rg := engine.NewReportGenerator(synthesisLLM)
+	reportGenID := uuid.New().String()
+	reportStart := time.Now()
+	_ = h.db.StartReportGen(reportGenID, job.ID, "full")
 	report, reportErr := rg.GenerateReport(ctx, &result, job.Question)
+	reportDurationMs := time.Since(reportStart).Milliseconds()
 	if reportErr != nil {
 		log.Printf("[FRACTURE] ReportGenerator error for sim %s: %v", job.ID, reportErr)
+		_ = h.db.CompleteReportGen(reportGenID, "error", reportErr.Error(), 0, reportDurationMs)
+	} else if report != nil {
+		_ = h.db.CompleteReportGen(reportGenID, "done", "", report.TotalTokens, reportDurationMs)
 	}
 
 	var finalData interface{}
@@ -618,6 +639,7 @@ func (h *Handler) persistRound(simID string, rr engine.RoundResult) {
 				}
 			}
 		}
+		h.persistJob(job)
 	}
 	h.simMu.Unlock()
 	for _, action := range rr.Actions {
@@ -643,18 +665,29 @@ func (h *Handler) persistRound(simID string, rr engine.RoundResult) {
 			log.Printf("[FRACTURE] SaveRound error sim=%s round=%d agent=%s: %v", simID, rr.Round, action.AgentID, err)
 		}
 	}
-	// Persist fracture votes if any
+	// Persist fracture votes if any.
+	// ProposalID: a stable composite key (simID + round + proposer) that uniquely
+	// identifies this proposal — ProposedBy alone is not unique across rounds.
+	// VoterType: the agent's archetype type (conformist|disruptor), not its name.
 	for _, fe := range rr.FractureEvents {
+		// Build a stable proposal ID from simulation + round + proposing agent.
+		proposalID := fmt.Sprintf("%s:round%d:%s", simID, fe.Round, fe.ProposedBy)
 		for _, vr := range fe.VoteBreakdown {
+			// Derive voter_type from agent ID prefix (conformist- / disruptor-).
+			voterType := "conformist"
+			if len(vr.AgentID) >= 9 && vr.AgentID[:9] == "disruptor" {
+				voterType = "disruptor"
+			}
 			voteRow := &db.VoteRow{
 				ID:           uuid.New().String(),
 				SimulationID: simID,
 				RoundNumber:  fe.Round,
-				ProposalID:   fe.ProposedBy,
+				ProposalID:   proposalID,
 				VoterID:      vr.AgentID,
-				VoterType:    vr.AgentName,
+				VoterType:    voterType,
 				Vote:         vr.Vote,
-				Weight:       1.0,
+				Weight:       vr.Weight,
+				Reasoning:    vr.Rationale,
 				CreatedAt:    time.Now().Unix(),
 			}
 			if err := h.db.SaveVote(voteRow); err != nil {
@@ -942,11 +975,73 @@ func (h *Handler) listArchetypes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createArchetype(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusCreated, map[string]bool{"ok": true})
+	var req struct {
+		Name         string  `json:"name"`
+		AgentType    string  `json:"agent_type"` // conformist | disruptor
+		Description  string  `json:"description"`
+		MemoryWeight float64 `json:"memory_weight"`
+		CompanyID    string  `json:"company_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" || req.AgentType == "" {
+		writeError(w, http.StatusBadRequest, "name and agent_type are required")
+		return
+	}
+	if req.AgentType != "conformist" && req.AgentType != "disruptor" {
+		writeError(w, http.StatusBadRequest, "agent_type must be conformist or disruptor")
+		return
+	}
+	if req.MemoryWeight == 0 {
+		req.MemoryWeight = 1.0
+	}
+	row := &db.ArchetypeRow{
+		ID:           uuid.New().String(),
+		CompanyID:    req.CompanyID,
+		Name:         req.Name,
+		AgentType:    req.AgentType,
+		Description:  req.Description,
+		MemoryWeight: req.MemoryWeight,
+		IsActive:     true,
+	}
+	if err := h.db.CreateArchetype(row); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create archetype: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, row)
 }
 
 func (h *Handler) updateArchetype(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Name         string  `json:"name"`
+		Description  string  `json:"description"`
+		MemoryWeight float64 `json:"memory_weight"`
+		IsActive     bool    `json:"is_active"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if req.MemoryWeight == 0 {
+		req.MemoryWeight = 1.0
+	}
+	if err := h.db.UpdateArchetype(id, req.Name, req.Description, req.MemoryWeight, req.IsActive); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update archetype: "+err.Error())
+		return
+	}
+	updated, err := h.db.GetArchetype(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 // ─── Rules ───────────────────────────────────────────────────────────────────
@@ -971,11 +1066,73 @@ func (h *Handler) listRulesByDomain(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createRule(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusCreated, map[string]bool{"ok": true})
+	var req struct {
+		Description string  `json:"description"`
+		Domain      string  `json:"domain"`
+		Stability   float64 `json:"stability"`
+		CompanyID   string  `json:"company_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Description == "" {
+		writeError(w, http.StatusBadRequest, "description is required")
+		return
+	}
+	if req.Domain == "" {
+		req.Domain = "market"
+	}
+	if req.Stability == 0 {
+		req.Stability = 0.5
+	}
+	row := &db.CustomRuleRow{
+		ID:          uuid.New().String(),
+		CompanyID:   req.CompanyID,
+		Description: req.Description,
+		Domain:      req.Domain,
+		Stability:   req.Stability,
+		IsActive:    true,
+	}
+	if err := h.db.CreateCustomRule(row); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create rule: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, row)
 }
 
 func (h *Handler) updateRule(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Description string  `json:"description"`
+		Domain      string  `json:"domain"`
+		Stability   float64 `json:"stability"`
+		IsActive    bool    `json:"is_active"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Description == "" {
+		writeError(w, http.StatusBadRequest, "description is required")
+		return
+	}
+	if req.Domain == "" {
+		req.Domain = "market"
+	}
+	if req.Stability == 0 {
+		req.Stability = 0.5
+	}
+	if err := h.db.UpdateCustomRule(id, req.Description, req.Domain, req.Stability, req.IsActive); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update rule: "+err.Error())
+		return
+	}
+	updated, err := h.db.GetCustomRule(id)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────

@@ -5,6 +5,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.7.0] — 2026-03-23
+
+### Fixed
+- **Live progress fields now survive restarts**: `simulation_jobs` table gains 6 new columns (`current_round`, `current_tension`, `fracture_count`, `last_agent_name`, `last_agent_action`, `total_tokens`). `persistJob` writes them after every round; `NewHandler` re-hydrates them on startup so the SSE stream reflects accurate state after a process restart.
+- **`StartReportGen` / `CompleteReportGen` now wired to runtime**: `runSimulation` calls both helpers around `GenerateReport`, recording timing, token usage, and error state in `report_generations` for every simulation.
+- **`createArchetype` and `updateArchetype` fully implemented**: Both endpoints now parse the request body, validate fields, and persist to the `archetypes` table. Built-in archetypes (`company_id = ''`) are protected from mutation.
+- **`createRule` and `updateRule` fully implemented**: Both endpoints persist to a new `custom_rules` table (migration 006), replacing the `{ok: true}` stubs.
+- **Vote model semantics corrected**: `ProposalID` is now a stable composite key (`simID:roundN:proposerID`) instead of the proposer name alone. `VoterType` is now `conformist` or `disruptor` (derived from agent ID prefix), not the agent's display name. `Weight` and `Reasoning` are now populated from `VoteRecord`.
+- **Migration runner is idempotent for `ALTER TABLE ADD COLUMN`**: New databases created from the updated `schema.sql` already have the progress columns; the runner now ignores "duplicate column" errors so migration 005 does not fail on fresh installs.
+
+### Added
+- Migration `005_job_progress.sql`: adds live progress columns to `simulation_jobs` for existing databases.
+- Migration `006_custom_rules.sql`: new `custom_rules` table for company-specific world rules.
+- `db/archetypes.go`: `CreateArchetype`, `UpdateArchetype`, `GetArchetype`, `ListArchetypes`, `DeleteArchetype`, `CreateCustomRule`, `UpdateCustomRule`, `GetCustomRule`, `ListCustomRules`, `DeleteCustomRule`.
+
+### Tests
+- All 55 tests pass (`go test ./... -race`). No regressions.
+
+---
+
 ## [1.6.0] — 2026-03-23
 
 ### Fixed

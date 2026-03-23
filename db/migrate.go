@@ -93,7 +93,15 @@ func applyMigration(db *sql.DB, name, content string) error {
 		if stmt == "" {
 			continue
 		}
-		if _, err = tx.Exec(stmt); err != nil {
+		if _, execErr := tx.Exec(stmt); execErr != nil {
+			// ALTER TABLE ADD COLUMN is not idempotent in SQLite.
+			// If the column already exists (schema.sql was updated), ignore the error.
+			if strings.Contains(strings.ToUpper(stmt), "ALTER TABLE") &&
+				strings.Contains(strings.ToUpper(stmt), "ADD COLUMN") &&
+				strings.Contains(execErr.Error(), "duplicate column") {
+				continue
+			}
+			err = execErr
 			return fmt.Errorf("statement failed: %w\nSQL: %s", err, stmt[:min(200, len(stmt))])
 		}
 	}

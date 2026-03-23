@@ -59,18 +59,25 @@ CREATE INDEX IF NOT EXISTS idx_memory_agent ON agent_memory(agent_id);
 -- ─── SIMULATION JOBS (persistent job state for resilience across restarts) ────
 
 CREATE TABLE IF NOT EXISTS simulation_jobs (
-    id               TEXT PRIMARY KEY,
-    status           TEXT NOT NULL DEFAULT 'queued',  -- queued|researching|running|done|error
-    question         TEXT NOT NULL,
-    department       TEXT NOT NULL DEFAULT 'market',
-    rounds           INTEGER NOT NULL DEFAULT 20,
-    company          TEXT NOT NULL DEFAULT '',
-    error_msg        TEXT NOT NULL DEFAULT '',
-    research_sources INTEGER NOT NULL DEFAULT 0,
-    research_tokens  INTEGER NOT NULL DEFAULT 0,
-    duration_ms      INTEGER NOT NULL DEFAULT 0,
-    created_at       INTEGER NOT NULL DEFAULT (unixepoch()),
-    updated_at       INTEGER NOT NULL DEFAULT (unixepoch())
+    id                TEXT PRIMARY KEY,
+    status            TEXT NOT NULL DEFAULT 'queued',  -- queued|researching|running|done|error
+    question          TEXT NOT NULL,
+    department        TEXT NOT NULL DEFAULT 'market',
+    rounds            INTEGER NOT NULL DEFAULT 20,
+    company           TEXT NOT NULL DEFAULT '',
+    error_msg         TEXT NOT NULL DEFAULT '',
+    research_sources  INTEGER NOT NULL DEFAULT 0,
+    research_tokens   INTEGER NOT NULL DEFAULT 0,
+    duration_ms       INTEGER NOT NULL DEFAULT 0,
+    -- Live progress fields (updated after each round, survive restarts)
+    current_round     INTEGER NOT NULL DEFAULT 0,
+    current_tension   REAL    NOT NULL DEFAULT 0.0,
+    fracture_count    INTEGER NOT NULL DEFAULT 0,
+    last_agent_name   TEXT    NOT NULL DEFAULT '',
+    last_agent_action TEXT    NOT NULL DEFAULT '',
+    total_tokens      INTEGER NOT NULL DEFAULT 0,
+    created_at        INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at        INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
 CREATE INDEX IF NOT EXISTS idx_sim_jobs_status ON simulation_jobs(status);

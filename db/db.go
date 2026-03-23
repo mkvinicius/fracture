@@ -197,24 +197,43 @@ type JobRow struct {
 	DurationMs      int64  `json:"duration_ms,omitempty"`
 	CreatedAt       int64  `json:"created_at"`
 	UpdatedAt       int64  `json:"updated_at"`
+	// Live progress fields (updated after each round via persistRound)
+	CurrentRound    int     `json:"current_round,omitempty"`
+	CurrentTension  float64 `json:"current_tension,omitempty"`
+	FractureCount   int     `json:"fracture_count,omitempty"`
+	LastAgentName   string  `json:"last_agent_name,omitempty"`
+	LastAgentAction string  `json:"last_agent_action,omitempty"`
+	TotalTokens     int     `json:"total_tokens,omitempty"`
 }
 
-// UpsertJob creates or updates a job row (called on every status transition).
+// UpsertJob creates or updates a job row (called on every status transition and after each round).
 func (d *DB) UpsertJob(j *JobRow) error {
 	_, err := d.Exec(`
-		INSERT INTO simulation_jobs
-			(id, status, question, department, rounds, company, error_msg,
-			 research_sources, research_tokens, duration_ms, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
-		ON CONFLICT(id) DO UPDATE SET
-			status           = excluded.status,
-			error_msg        = excluded.error_msg,
-			research_sources = excluded.research_sources,
-			research_tokens  = excluded.research_tokens,
-			duration_ms      = excluded.duration_ms,
-			updated_at       = unixepoch()
-	`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Company, j.Error,
-		j.ResearchSources, j.ResearchTokens, j.DurationMs, j.CreatedAt)
+			INSERT INTO simulation_jobs
+				(id, status, question, department, rounds, company, error_msg,
+				 research_sources, research_tokens, duration_ms,
+				 current_round, current_tension, fracture_count,
+				 last_agent_name, last_agent_action, total_tokens,
+				 created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+			ON CONFLICT(id) DO UPDATE SET
+				status           = excluded.status,
+				error_msg        = excluded.error_msg,
+				research_sources = excluded.research_sources,
+				research_tokens  = excluded.research_tokens,
+				duration_ms      = excluded.duration_ms,
+				current_round    = excluded.current_round,
+				current_tension  = excluded.current_tension,
+				fracture_count   = excluded.fracture_count,
+				last_agent_name  = excluded.last_agent_name,
+				last_agent_action = excluded.last_agent_action,
+				total_tokens     = excluded.total_tokens,
+				updated_at       = unixepoch()
+		`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Company, j.Error,
+		j.ResearchSources, j.ResearchTokens, j.DurationMs,
+		j.CurrentRound, j.CurrentTension, j.FractureCount,
+		j.LastAgentName, j.LastAgentAction, j.TotalTokens,
+		j.CreatedAt)
 	return err
 }
 
@@ -222,11 +241,15 @@ func (d *DB) UpsertJob(j *JobRow) error {
 func (d *DB) GetJob(id string) (*JobRow, error) {
 	var j JobRow
 	err := d.QueryRow(`
-		SELECT id, status, question, department, rounds, company, error_msg,
-		       research_sources, research_tokens, duration_ms, created_at, updated_at
-		FROM simulation_jobs WHERE id = ?
-	`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
-		&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt)
+			SELECT id, status, question, department, rounds, company, error_msg,
+			       research_sources, research_tokens, duration_ms, created_at, updated_at,
+			       current_round, current_tension, fracture_count,
+			       last_agent_name, last_agent_action, total_tokens
+			FROM simulation_jobs WHERE id = ?
+		`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
+		&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
+		&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
+		&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +260,9 @@ func (d *DB) GetJob(id string) (*JobRow, error) {
 func (d *DB) ListJobs() ([]JobRow, error) {
 	rows, err := d.Query(`
 		SELECT id, status, question, department, rounds, company, error_msg,
-		       research_sources, research_tokens, duration_ms, created_at, updated_at
+		       research_sources, research_tokens, duration_ms, created_at, updated_at,
+		       current_round, current_tension, fracture_count,
+		       last_agent_name, last_agent_action, total_tokens
 		FROM simulation_jobs ORDER BY created_at DESC LIMIT 200
 	`)
 	if err != nil {
@@ -248,7 +273,9 @@ func (d *DB) ListJobs() ([]JobRow, error) {
 	for rows.Next() {
 		var j JobRow
 		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
-			&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
+			&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
+			&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens); err != nil {
 			continue
 		}
 		result = append(result, j)
