@@ -5,6 +5,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.6.0] — 2026-03-23
+
+### Fixed
+- **Watermark version hardcoded**: `engine/report.go` now reads `updater.CurrentVersion` instead of the static string `"1.4.0"` — every generated report reflects the actual binary version.
+
+### Added
+- **Versioned migration system** (`db/migrate.go`): a lightweight runner that applies SQL migrations in order, tracks applied migrations in `schema_migrations`, and is idempotent across restarts.
+- **Four initial migrations** (`db/migrations/001–004`): codify the full schema history — init tables, simulation jobs, execution trail (rounds/votes/report_generations), and the calibration/causality graph.
+- **`simulation_rounds` table**: one row per agent action per round, enabling full replay, per-agent analytics, and future fine-tuning.
+- **`fracture_votes` table**: one row per agent vote on each FRACTURE POINT proposal, enabling vote audit and calibration.
+- **`report_generations` table**: tracks each report generation attempt with timing, token usage, and error messages.
+- **`archetypes` table**: stores per-company archetype overrides and calibration weights — closes the gap entre `memory/calibration.go` e o schema.
+- **`causality_nodes` + `causality_edges` tables**: closes the gap between `memory/calibration.go` CausalityGraph and the schema.
+- **`db.SaveRound` / `db.ListRounds`**: persist and query simulation rounds.
+- **`db.SaveVote` / `db.ListVotes`**: persist and query fracture votes.
+- **`db.StartReportGen` / `db.CompleteReportGen` / `db.ListReportGens`**: track report generation lifecycle.
+- **Live SSE progress fields** on `simJob`: `current_round`, `current_tension`, `fracture_count`, `last_agent_name`, `last_agent_action`, `total_tokens` — updated after every round and streamed to the UI in real time.
+- **`persistRound` helper** in `api/handler.go`: called after each round to persist actions and votes to the DB and update live progress fields atomically.
+- **7 new tests** for `db/rounds.go` (rounds, votes, report_generations) — total test count: **55 passing**.
+
+### Changed
+- `db.Open()` now calls `Migrate()` after applying the base schema, ensuring all migrations run on startup.
+- `openTestDB` in `db_test.go` now also applies migrations so new tables are available in tests.
+- Test count: **33 → 55 passing**.
+
+---
+
 ## [1.5.0] — 2025-03-23
 
 ### Fixed

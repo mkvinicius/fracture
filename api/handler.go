@@ -49,6 +49,13 @@ type simJob struct {
 	ResearchSources int    `json:"research_sources,omitempty"` // web sources found by DeepSearch
 	ResearchTokens  int    `json:"research_tokens,omitempty"`  // tokens used by DeepSearch
 	Company         string `json:"company,omitempty"`
+	// Live progress fields — updated after each round, streamed via SSE
+	CurrentRound    int     `json:"current_round,omitempty"`     // last completed round number
+	CurrentTension  float64 `json:"current_tension,omitempty"`   // tension level after last round
+	FractureCount   int     `json:"fracture_count,omitempty"`    // fracture points triggered so far
+	LastAgentName   string  `json:"last_agent_name,omitempty"`   // name of last agent to act
+	LastAgentAction string  `json:"last_agent_action,omitempty"` // truncated text of last action
+	TotalTokens     int     `json:"total_tokens,omitempty"`      // cumulative tokens used
 }
 
 // NewHandler creates a new API Handler.
@@ -548,9 +555,9 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Drain the round channel
-	for range sim.Run(ctx) {
-		// rounds are collected internally by Finalize()
+	// Drain the round channel and persist each round to the DB
+	for rr := range sim.Run(ctx) {
+		h.persistRound(job.ID, rr)
 	}
 
 	result := sim.Finalize()
@@ -588,6 +595,73 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		"tokens":      result.TotalTokens,
 		"fractures":   len(result.FractureEvents),
 	})
+}
+
+// persistRound saves each agent action and fracture votes from a RoundResult to the DB.
+// It also updates the live progress fields on the in-memory simJob for SSE streaming.
+// Errors are logged but never fatal — the simulation continues regardless.
+func (h *Handler) persistRound(simID string, rr engine.RoundResult) {
+	// Update live progress on the in-memory job
+	h.simMu.Lock()
+	if job, ok := h.simJobs[simID]; ok {
+		job.CurrentRound = rr.Round
+		job.CurrentTension = rr.Tension
+		job.FractureCount += len(rr.FractureEvents)
+		for _, action := range rr.Actions {
+			job.TotalTokens += action.TokensUsed
+			if action.Text != "" {
+				job.LastAgentName = action.AgentID
+				if len(action.Text) > 120 {
+					job.LastAgentAction = action.Text[:120] + "…"
+				} else {
+					job.LastAgentAction = action.Text
+				}
+			}
+		}
+	}
+	h.simMu.Unlock()
+	for _, action := range rr.Actions {
+		var newRuleJSON string
+		if action.Proposal != nil {
+			b, _ := json.Marshal(action.Proposal)
+			newRuleJSON = string(b)
+		}
+		row := &db.RoundRow{
+			ID:               uuid.New().String(),
+			SimulationID:     simID,
+			RoundNumber:      rr.Round,
+			AgentID:          action.AgentID,
+			AgentType:        string(action.AgentType),
+			ActionText:       action.Text,
+			TensionLevel:     rr.Tension,
+			FractureProposed: action.IsFractureProposal,
+			NewRuleJSON:      newRuleJSON,
+			TokensUsed:       action.TokensUsed,
+			CreatedAt:        time.Now().Unix(),
+		}
+		if err := h.db.SaveRound(row); err != nil {
+			log.Printf("[FRACTURE] SaveRound error sim=%s round=%d agent=%s: %v", simID, rr.Round, action.AgentID, err)
+		}
+	}
+	// Persist fracture votes if any
+	for _, fe := range rr.FractureEvents {
+		for _, vr := range fe.VoteBreakdown {
+			voteRow := &db.VoteRow{
+				ID:           uuid.New().String(),
+				SimulationID: simID,
+				RoundNumber:  fe.Round,
+				ProposalID:   fe.ProposedBy,
+				VoterID:      vr.AgentID,
+				VoterType:    vr.AgentName,
+				Vote:         vr.Vote,
+				Weight:       1.0,
+				CreatedAt:    time.Now().Unix(),
+			}
+			if err := h.db.SaveVote(voteRow); err != nil {
+				log.Printf("[FRACTURE] SaveVote error sim=%s round=%d voter=%s: %v", simID, fe.Round, vr.AgentID, err)
+			}
+		}
+	}
 }
 
 func (h *Handler) listSimulations(w http.ResponseWriter, r *http.Request) {

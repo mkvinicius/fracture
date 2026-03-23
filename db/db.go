@@ -62,13 +62,18 @@ func Open() (*DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 
-	// Apply schema (idempotent — uses CREATE TABLE IF NOT EXISTS)
+	// Apply base schema (idempotent — uses CREATE TABLE IF NOT EXISTS)
 	schema, err := schemaFS.ReadFile("schema.sql")
 	if err != nil {
 		return nil, fmt.Errorf("read schema: %w", err)
 	}
 	if _, err := sqlDB.Exec(string(schema)); err != nil {
 		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+
+	// Apply versioned migrations (idempotent — skips already-applied ones)
+	if err := Migrate(sqlDB); err != nil {
+		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
 	return &DB{sqlDB}, nil

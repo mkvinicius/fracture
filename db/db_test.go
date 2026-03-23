@@ -34,6 +34,11 @@ func openTestDB(t *testing.T) *DB {
 		t.Fatalf("apply schema: %v", err)
 	}
 
+	// Apply versioned migrations
+	if err := Migrate(sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
 	d := &DB{sqlDB}
 	t.Cleanup(func() { d.Close() })
 	return d
