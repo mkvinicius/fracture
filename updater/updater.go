@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	CurrentVersion = "1.3.0"
+	CurrentVersion = "1.4.0"
 	repoOwner      = "mkvinicius"
 	repoName       = "fracture"
 	apiURL         = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest"

@@ -56,11 +56,17 @@ var httpClient = &http.Client{
 
 // DetectSourceType classifies a URL by its domain.
 func DetectSourceType(rawURL string) SourceType {
+	if rawURL == "" {
+		return SourceUnknown
+	}
 	u, err := url.Parse(strings.ToLower(rawURL))
 	if err != nil {
 		return SourceUnknown
 	}
 	host := u.Hostname()
+	if host == "" {
+		return SourceUnknown
+	}
 	switch {
 	case strings.Contains(host, "linkedin.com"):
 		return SourceLinkedIn
