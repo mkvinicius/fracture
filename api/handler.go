@@ -11,6 +11,7 @@ import (
 
 	"github.com/fracture/fracture/archetypes"
 	"github.com/fracture/fracture/contextextractor"
+	"github.com/fracture/fracture/deepsearch"
 	"github.com/fracture/fracture/db"
 	"github.com/fracture/fracture/engine"
 	"github.com/fracture/fracture/llm"
@@ -36,14 +37,17 @@ type Handler struct {
 }
 
 type simJob struct {
-	ID         string `json:"id"`
-	Status     string `json:"status"` // queued | running | done | error
-	Question   string `json:"question"`
-	Department string `json:"department"`
-	Rounds     int    `json:"rounds"`
-	CreatedAt  int64  `json:"created_at"`
-	DurationMs int64  `json:"duration_ms,omitempty"`
-	Error      string `json:"error,omitempty"`
+	ID              string `json:"id"`
+	Status          string `json:"status"` // queued | researching | running | done | error
+	Question        string `json:"question"`
+	Department      string `json:"department"`
+	Rounds          int    `json:"rounds"`
+	CreatedAt       int64  `json:"created_at"`
+	DurationMs      int64  `json:"duration_ms,omitempty"`
+	Error           string `json:"error,omitempty"`
+	ResearchSources int    `json:"research_sources,omitempty"` // web sources found by DeepSearch
+	ResearchTokens  int    `json:"research_tokens,omitempty"`  // tokens used by DeepSearch
+	Company         string `json:"company,omitempty"`
 }
 
 // NewHandler creates a new API Handler.
@@ -371,14 +375,78 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 	h.simJobs[job.ID] = job
 	h.simMu.Unlock()
 
-	// Run simulation asynchronously
-	go h.runSimulation(job, cleanCtx)
+	// Extract company name from saved profile (best-effort)
+	companyName := ""
+	if companyJSON, _ := h.db.GetConfig("company_json"); companyJSON != "" {
+		var cp map[string]interface{}
+		if json.Unmarshal([]byte(companyJSON), &cp) == nil {
+			if name, ok := cp["name"].(string); ok {
+				companyName = name
+			}
+		}
+	}
+	job.Company = companyName
+
+	// Run DeepSearch + simulation asynchronously
+	go h.runWithDeepSearch(job, cleanCtx)
 
 	_ = h.auditLogger.Log("simulation.created", job.ID, map[string]interface{}{
 		"question": cleanQ, "department": body.Department, "rounds": body.Rounds,
 	})
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"id": job.ID, "status": "queued"})
+}
+
+// runWithDeepSearch runs the DeepSearch agent first, then launches the simulation.
+// This enriches the simulation with real-world context before the 32 agents start.
+func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
+	// Step 1: Mark as researching
+	h.simMu.Lock()
+	job.Status = "researching"
+	h.simMu.Unlock()
+
+	// Build LLM router first (needed for DeepSearch too)
+	router, err := h.buildLLMRouter()
+	if err != nil {
+		h.simMu.Lock()
+		job.Status = "error"
+		job.Error = "no LLM keys configured — add at least one API key in Settings"
+		h.simMu.Unlock()
+		return
+	}
+
+	// Step 2: Run DeepSearch to gather real-world context
+	researchCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	dsAgent := deepsearch.New(
+		router.ForRole(llm.RoleSynthesis), // use synthesis model for research
+		deepsearch.DefaultConfig(),
+	)
+
+	contextReport, dsErr := dsAgent.Research(researchCtx, job.Question, job.Company, job.Department)
+
+	// Build enriched context: DeepSearch findings + manual context
+	enrichedContext := manualContext
+	if dsErr == nil && contextReport != nil {
+		researchContext := contextReport.ToSimulationContext()
+		if enrichedContext != "" {
+			enrichedContext = researchContext + "\n\n" + enrichedContext
+		} else {
+			enrichedContext = researchContext
+		}
+		h.simMu.Lock()
+		job.ResearchSources = len(contextReport.Sources)
+		job.ResearchTokens = contextReport.TokensUsed
+		h.simMu.Unlock()
+		log.Printf("[FRACTURE] DeepSearch completed for sim %s: %d sources, %d tokens",
+			job.ID, len(contextReport.Sources), contextReport.TokensUsed)
+	} else if dsErr != nil {
+		log.Printf("[FRACTURE] DeepSearch failed for sim %s: %v — continuing without research context", job.ID, dsErr)
+	}
+
+	// Step 3: Run the full FRACTURE simulation with enriched context
+	h.runSimulation(job, enrichedContext)
 }
 
 func (h *Handler) runSimulation(job *simJob, extraContext string) {

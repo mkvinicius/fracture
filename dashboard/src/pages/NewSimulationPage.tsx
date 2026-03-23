@@ -38,6 +38,8 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
   const [rounds, setRounds] = useState(40)
   const [context, setContext] = useState('')
   const [running, setRunning] = useState(false)
+  const [simPhase, setSimPhase] = useState<'idle' | 'researching' | 'running'>('idle')
+  const [researchSources, setResearchSources] = useState(0)
   const [error, setError] = useState('')
   const [showUrlSection, setShowUrlSection] = useState(false)
   const [extracting, setExtracting] = useState(false)
@@ -88,6 +90,8 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
   async function handleRun() {
     if (!question.trim()) return
     setRunning(true)
+    setSimPhase('researching')
+    setResearchSources(0)
     setError('')
     const urls = urlEntries.map(u => u.value).filter(v => v.trim() !== '')
     try {
@@ -98,14 +102,28 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
       })
       const data = await res.json()
       if (data.id) {
-        onNavigate('simulations')
+        // Poll for status to show research → running transition
+        const poll = setInterval(async () => {
+          try {
+            const sr = await fetch(`/api/simulations/${data.id}`)
+            const sd = await sr.json()
+            if (sd.research_sources) setResearchSources(sd.research_sources)
+            if (sd.status === 'running') setSimPhase('running')
+            if (sd.status === 'done' || sd.status === 'error') {
+              clearInterval(poll)
+              onNavigate('simulations')
+            }
+          } catch { clearInterval(poll); onNavigate('simulations') }
+        }, 2000)
       } else {
         setError(data.error || 'Failed to start simulation')
         setRunning(false)
+        setSimPhase('idle')
       }
     } catch {
       setError('Could not connect to FRACTURE engine. Make sure the server is running.')
       setRunning(false)
+      setSimPhase('idle')
     }
   }
 
@@ -229,11 +247,28 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: '13px', marginBottom: '16px', padding: '12px', borderRadius: '8px', background: 'oklch(0.60 0.22 25 / 0.1)', border: '1px solid oklch(0.60 0.22 25 / 0.3)' }}>{error}</div>}
 
+      {/* Progress indicator */}
+      {running && (
+        <div style={{ marginBottom: '20px', padding: '16px', borderRadius: '10px', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: simPhase === 'researching' ? 'oklch(0.75 0.18 55)' : 'var(--color-accent)', animation: 'pulse 1.2s infinite' }} />
+            <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text)' }}>
+              {simPhase === 'researching' ? '🔍 DeepSearch — Researching market context...' : '◈ FRACTURE — Running simulation with 32 agents...'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+            <span style={{ color: simPhase !== 'idle' ? 'oklch(0.75 0.18 55)' : 'var(--color-text-muted)' }}>✓ DeepSearch {simPhase === 'researching' ? 'running...' : researchSources > 0 ? `— ${researchSources} sources found` : '— complete'}</span>
+            <span style={{ color: simPhase === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{simPhase === 'running' ? '⟳ Simulation running...' : '○ Simulation queued'}</span>
+          </div>
+          <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '12px' }}>
-        <button onClick={() => onNavigate('home')} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '14px', cursor: 'pointer' }}>Cancel</button>
+        <button onClick={() => onNavigate('home')} disabled={running} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '14px', cursor: running ? 'not-allowed' : 'pointer' }}>Cancel</button>
         <button onClick={handleRun} disabled={!question.trim() || running}
           style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: running ? 'var(--color-border)' : 'var(--color-accent)', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: running ? 'not-allowed' : 'pointer' }}>
-          {running ? '⟳ Starting...' : '◈ Run Simulation'}
+          {running ? (simPhase === 'researching' ? '🔍 Researching...' : '◈ Simulating...') : '◈ Run Simulation'}
         </button>
       </div>
     </div>
