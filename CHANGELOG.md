@@ -5,6 +5,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.8.0] — 2026-03-23
+
+### Fixed
+- **`listArchetypes` now returns built-ins + custom merged**: the endpoint previously returned only a hardcoded built-in list. It now queries `db.ListArchetypes(companyID)` and merges results — custom archetypes override built-ins with the same ID; new ones are appended. Pass `?company_id=<id>` to filter.
+- **`listRules` and `listRulesByDomain` now merge custom rules from DB**: both endpoints previously returned only `DefaultWorldForDomain(...)` built-ins. They now call `db.ListCustomRules(companyID)` and append active custom rules. Pass `?company_id=<id>` to include company-specific rules.
+- **Route conflict resolved**: `GET /rules/{domain}` renamed to `GET /rules/domain/{domain}` to avoid colliding with the new `GET /rules/{id}` endpoint.
+
+### Added
+- `GET /archetypes/{id}` — returns a single archetype (custom from DB first, then built-in fallback).
+- `DELETE /archetypes/{id}` — removes a custom archetype; built-ins return 403 Forbidden.
+- `GET /rules/{id}` — returns a single custom rule by ID.
+- `DELETE /rules/{id}` — removes a custom rule.
+- `db/archetypes_test.go`: 13 new tests covering `CreateArchetype`, `UpdateArchetype`, `ListArchetypes`, `DeleteArchetype`, built-in protection, `CreateCustomRule`, `UpdateCustomRule`, `ListCustomRules`, `DeleteCustomRule`, progress columns (`current_round`, `current_tension`, `fracture_count`, `last_agent_name`, `last_agent_action`, `total_tokens`), `ListJobs` progress field survival, and full `StartReportGen`/`CompleteReportGen`/`ListReportGens` lifecycle.
+
+### Tests
+- **68 tests passing** (was 55). No regressions.
+
+---
+
 ## [1.7.0] — 2026-03-23
 
 ### Fixed

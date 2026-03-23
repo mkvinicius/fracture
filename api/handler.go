@@ -176,16 +176,20 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/templates", h.listTemplates)
 	r.Get("/templates/{id}", h.getTemplate)
 
-	// Archetypes — returns built-in list
+	// Archetypes — built-ins + custom from DB
 	r.Get("/archetypes", h.listArchetypes)
 	r.Post("/archetypes", h.createArchetype)
+	r.Get("/archetypes/{id}", h.getArchetype)
 	r.Put("/archetypes/{id}", h.updateArchetype)
+	r.Delete("/archetypes/{id}", h.deleteArchetype)
 
-	// Rules — returns world rules per domain
+	// Rules — built-ins merged with custom from DB
 	r.Get("/rules", h.listRules)
-	r.Get("/rules/{domain}", h.listRulesByDomain)
+	r.Get("/rules/domain/{domain}", h.listRulesByDomain)
 	r.Post("/rules", h.createRule)
+	r.Get("/rules/{id}", h.getCustomRule)
 	r.Put("/rules/{id}", h.updateRule)
+	r.Delete("/rules/{id}", h.deleteCustomRule)
 
 	// Audit log
 	r.Get("/audit", h.getAuditLog)
@@ -944,34 +948,96 @@ func (h *Handler) getTemplate(w http.ResponseWriter, r *http.Request) {
 
 // ─── Archetypes ──────────────────────────────────────────────────────────────
 
-func (h *Handler) listArchetypes(w http.ResponseWriter, r *http.Request) {
-	// Return built-in archetype metadata (no LLM needed)
-	type archetypeMeta struct {
-		ID          string   `json:"id"`
-		Name        string   `json:"name"`
-		Type        string   `json:"type"`
-		Role        string   `json:"role"`
-		Traits      []string `json:"traits"`
-		PowerWeight float64  `json:"power_weight"`
+// builtinArchetypes returns the hardcoded built-in archetype list as ArchetypeRow slices.
+// These are never stored in the DB; they are merged with custom archetypes at query time.
+func builtinArchetypes() []db.ArchetypeRow {
+	type meta struct {
+		id, name, agentType, description string
+		weight                           float64
 	}
+	list := []meta{
+		{"pragmatist", "The Pragmatist", "conformist", "Mid-level manager: data-driven, risk-averse, process-oriented", 0.7},
+		{"loyalist", "The Loyalist", "conformist", "Long-term customer: brand-loyal, resistant to change, word-of-mouth", 0.6},
+		{"analyst", "The Analyst", "conformist", "Industry analyst: evidence-based, conservative, benchmark-focused", 0.8},
+		{"opportunist", "The Opportunist", "conformist", "Competitor executive: market-watching, fast-follower, profit-driven", 0.75},
+		{"traditionalist", "The Traditionalist", "conformist", "Regulator / policy maker: rule-enforcing, slow-moving, stability-focused", 0.65},
+		{"regulator", "The Regulator", "conformist", "Compliance officer: risk-averse, rule-based, conservative", 0.7},
+		{"consumer", "The Consumer", "conformist", "End user / customer: value-seeking, convenience-driven, price-sensitive", 0.55},
+		{"investor", "The Investor", "conformist", "Institutional investor: ROI-focused, long-term, risk-calibrated", 0.85},
+		{"visionary", "The Visionary", "disruptor", "Startup founder: contrarian, first-principles, high-risk tolerance", 0.9},
+		{"rebel", "The Rebel", "disruptor", "Activist / whistleblower: anti-establishment, viral, unpredictable", 0.7},
+		{"tech-accelerator", "The Tech Accelerator", "disruptor", "AI/tech researcher: exponential thinking, automation-first, impatient", 0.85},
+		{"arbitrageur", "The Arbitrageur", "disruptor", "Financial disruptor: gap-finder, speed-focused, asymmetric bets", 0.8},
+	}
+	out := make([]db.ArchetypeRow, 0, len(list))
+	for _, m := range list {
+		out = append(out, db.ArchetypeRow{
+			ID: m.id, Name: m.name, AgentType: m.agentType,
+			Description: m.description, MemoryWeight: m.weight, IsActive: true,
+		})
+	}
+	return out
+}
 
-	list := []archetypeMeta{
-		// Conformists
-		{ID: "pragmatist", Name: "The Pragmatist", Type: "conformist", Role: "Mid-level manager", Traits: []string{"data-driven", "risk-averse", "process-oriented"}, PowerWeight: 0.7},
-		{ID: "loyalist", Name: "The Loyalist", Type: "conformist", Role: "Long-term customer", Traits: []string{"brand-loyal", "resistant to change", "word-of-mouth"}, PowerWeight: 0.6},
-		{ID: "analyst", Name: "The Analyst", Type: "conformist", Role: "Industry analyst", Traits: []string{"evidence-based", "conservative", "benchmark-focused"}, PowerWeight: 0.8},
-		{ID: "opportunist", Name: "The Opportunist", Type: "conformist", Role: "Competitor executive", Traits: []string{"market-watching", "fast-follower", "profit-driven"}, PowerWeight: 0.75},
-		{ID: "traditionalist", Name: "The Traditionalist", Type: "conformist", Role: "Regulator / policy maker", Traits: []string{"rule-enforcing", "slow-moving", "stability-focused"}, PowerWeight: 0.65},
-		{ID: "regulator", Name: "The Regulator", Type: "conformist", Role: "Compliance officer", Traits: []string{"risk-averse", "rule-based", "conservative"}, PowerWeight: 0.7},
-		{ID: "consumer", Name: "The Consumer", Type: "conformist", Role: "End user / customer", Traits: []string{"value-seeking", "convenience-driven", "price-sensitive"}, PowerWeight: 0.55},
-		{ID: "investor", Name: "The Investor", Type: "conformist", Role: "Institutional investor", Traits: []string{"ROI-focused", "long-term", "risk-calibrated"}, PowerWeight: 0.85},
-		// Disruptors
-		{ID: "visionary", Name: "The Visionary", Type: "disruptor", Role: "Startup founder", Traits: []string{"contrarian", "first-principles", "high-risk tolerance"}, PowerWeight: 0.9},
-		{ID: "rebel", Name: "The Rebel", Type: "disruptor", Role: "Activist / whistleblower", Traits: []string{"anti-establishment", "viral", "unpredictable"}, PowerWeight: 0.7},
-		{ID: "tech-accelerator", Name: "The Tech Accelerator", Type: "disruptor", Role: "AI/tech researcher", Traits: []string{"exponential thinking", "automation-first", "impatient"}, PowerWeight: 0.85},
-		{ID: "arbitrageur", Name: "The Arbitrageur", Type: "disruptor", Role: "Financial disruptor", Traits: []string{"gap-finder", "speed-focused", "asymmetric bets"}, PowerWeight: 0.8},
+func (h *Handler) listArchetypes(w http.ResponseWriter, r *http.Request) {
+	companyID := r.URL.Query().Get("company_id")
+
+	// Start with built-ins
+	result := builtinArchetypes()
+
+	// Merge custom archetypes from DB (company-specific or all)
+	custom, err := h.db.ListArchetypes(companyID)
+	if err == nil {
+		// Index built-ins by ID so company overrides replace them
+		index := make(map[string]int, len(result))
+		for i, a := range result {
+			index[a.ID] = i
+		}
+		for _, a := range custom {
+			if i, ok := index[a.ID]; ok {
+				// Override built-in with company-calibrated version
+				result[i] = a
+			} else {
+				// Append new custom archetype
+				result = append(result, a)
+			}
+		}
 	}
-	writeJSON(w, http.StatusOK, list)
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) getArchetype(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	// Check DB first (custom archetypes)
+	a, err := h.db.GetArchetype(id)
+	if err == nil {
+		writeJSON(w, http.StatusOK, a)
+		return
+	}
+	// Fall back to built-in
+	for _, b := range builtinArchetypes() {
+		if b.ID == id {
+			writeJSON(w, http.StatusOK, b)
+			return
+		}
+	}
+	writeError(w, http.StatusNotFound, "archetype not found")
+}
+
+func (h *Handler) deleteArchetype(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	// Built-in archetypes cannot be deleted
+	for _, b := range builtinArchetypes() {
+		if b.ID == id {
+			writeError(w, http.StatusForbidden, "built-in archetypes cannot be deleted")
+			return
+		}
+	}
+	if err := h.db.DeleteArchetype(id); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete archetype: "+err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) createArchetype(w http.ResponseWriter, r *http.Request) {
@@ -1046,23 +1112,85 @@ func (h *Handler) updateArchetype(w http.ResponseWriter, r *http.Request) {
 
 // ─── Rules ───────────────────────────────────────────────────────────────────
 
-func (h *Handler) listRules(w http.ResponseWriter, r *http.Request) {
-	world := engine.DefaultWorldForDomain("market", "", "")
-	rules := make([]*engine.Rule, 0, len(world.Rules))
-	for _, r := range world.Rules {
-		rules = append(rules, r)
+// mergeRulesWithCustom takes a slice of built-in engine.Rule pointers and appends
+// active custom rules from the DB for the given companyID, converting them to the
+// same engine.Rule shape so callers receive a unified list.
+func (h *Handler) mergeRulesWithCustom(builtins []*engine.Rule, domain, companyID string) []interface{} {
+	type ruleView struct {
+		ID          string  `json:"id"`
+		Description string  `json:"description"`
+		Domain      string  `json:"domain"`
+		Stability   float64 `json:"stability"`
+		IsCustom    bool    `json:"is_custom"`
+		CompanyID   string  `json:"company_id,omitempty"`
 	}
-	writeJSON(w, http.StatusOK, rules)
+	result := make([]interface{}, 0, len(builtins)+8)
+	for _, r := range builtins {
+		result = append(result, ruleView{
+			ID: r.ID, Description: r.Description,
+			Domain: string(r.Domain), Stability: r.Stability,
+			IsCustom: false,
+		})
+	}
+	if companyID != "" {
+		custom, err := h.db.ListCustomRules(companyID)
+		if err == nil {
+			for _, cr := range custom {
+				if !cr.IsActive {
+					continue
+				}
+				if domain != "" && cr.Domain != domain {
+					continue
+				}
+				result = append(result, ruleView{
+					ID: cr.ID, Description: cr.Description,
+					Domain: cr.Domain, Stability: cr.Stability,
+					IsCustom: true, CompanyID: cr.CompanyID,
+				})
+			}
+		}
+	}
+	return result
+}
+
+func (h *Handler) listRules(w http.ResponseWriter, r *http.Request) {
+	companyID := r.URL.Query().Get("company_id")
+	world := engine.DefaultWorldForDomain("market", "", "")
+	builtins := make([]*engine.Rule, 0, len(world.Rules))
+	for _, rule := range world.Rules {
+		builtins = append(builtins, rule)
+	}
+	writeJSON(w, http.StatusOK, h.mergeRulesWithCustom(builtins, "", companyID))
 }
 
 func (h *Handler) listRulesByDomain(w http.ResponseWriter, r *http.Request) {
 	domain := chi.URLParam(r, "domain")
+	companyID := r.URL.Query().Get("company_id")
 	world := engine.DefaultWorldForDomain(engine.RuleDomain(domain), "", "")
-	rules := make([]*engine.Rule, 0, len(world.Rules))
+	builtins := make([]*engine.Rule, 0, len(world.Rules))
 	for _, rule := range world.Rules {
-		rules = append(rules, rule)
+		builtins = append(builtins, rule)
 	}
-	writeJSON(w, http.StatusOK, rules)
+	writeJSON(w, http.StatusOK, h.mergeRulesWithCustom(builtins, domain, companyID))
+}
+
+func (h *Handler) getCustomRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	rule, err := h.db.GetCustomRule(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "rule not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, rule)
+}
+
+func (h *Handler) deleteCustomRule(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.db.DeleteCustomRule(id); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete rule: "+err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) createRule(w http.ResponseWriter, r *http.Request) {
