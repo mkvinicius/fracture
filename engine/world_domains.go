@@ -1,6 +1,19 @@
 package engine
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
+
+// DefaultWorldForDomainWithContext is like DefaultWorldForDomain but respects
+// context cancellation. It returns an error immediately if ctx is already done,
+// allowing callers to propagate timeouts and cancellations from higher layers.
+func DefaultWorldForDomainWithContext(ctx context.Context, domain RuleDomain, question, extraContext string) (*World, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return DefaultWorldForDomain(domain, question, extraContext), nil
+}
 
 // DefaultWorldForDomain creates a World pre-populated with domain-specific rules.
 // The question and context are used to inject additional tension seeds.
