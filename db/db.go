@@ -307,6 +307,60 @@ func (d *DB) MarkInterruptedJobsFailed() (int, error) {
 	return int(n), nil
 }
 
+// ─── Domain Contexts ──────────────────────────────────────────────────────────
+
+// DomainContextRow mirrors the domain_contexts table.
+type DomainContextRow struct {
+	SimulationID      string
+	Domain            string
+	Context           string
+	Signals           string  // JSON array
+	StabilityModifier float64
+	Confidence        float64
+	AffectedRules     string  // JSON array
+	CachedAt          int64
+}
+
+// SaveDomainContext upserts a domain context row for a simulation.
+func (d *DB) SaveDomainContext(simulationID, domain string, row DomainContextRow) error {
+	_, err := d.Exec(`
+		INSERT INTO domain_contexts
+			(simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, cached_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(simulation_id, domain) DO UPDATE SET
+			context            = excluded.context,
+			signals            = excluded.signals,
+			stability_modifier = excluded.stability_modifier,
+			confidence         = excluded.confidence,
+			affected_rules     = excluded.affected_rules,
+			cached_at          = excluded.cached_at
+	`, simulationID, domain, row.Context, row.Signals, row.StabilityModifier, row.Confidence, row.AffectedRules)
+	return err
+}
+
+// GetDomainContexts returns all domain context rows for a simulation.
+func (d *DB) GetDomainContexts(simulationID string) ([]DomainContextRow, error) {
+	rows, err := d.Query(`
+		SELECT simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, cached_at
+		FROM domain_contexts WHERE simulation_id = ?
+	`, simulationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DomainContextRow
+	for rows.Next() {
+		var r DomainContextRow
+		if err := rows.Scan(&r.SimulationID, &r.Domain, &r.Context, &r.Signals,
+			&r.StabilityModifier, &r.Confidence, &r.AffectedRules, &r.CachedAt); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, nil
+}
+
 // SaveFeedback stores user feedback for a simulation.
 func (d *DB) SaveFeedback(simulationID, outcome, notes string) error {
 	_, err := d.Exec(`

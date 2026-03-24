@@ -42,9 +42,10 @@ type RuleProposal struct {
 // World holds the graph of rules and tracks accumulated tension.
 type World struct {
 	mu           sync.RWMutex
-	Rules        map[string]*Rule `json:"rules"`
-	TensionMap   map[string]float64 `json:"tension_map"` // ruleID -> tension 0.0-1.0
-	RoundHistory []WorldSnapshot  `json:"round_history"`
+	Rules        map[string]*Rule   `json:"rules"`
+	TensionMap   map[string]float64 `json:"tension_map"`    // ruleID -> tension 0.0-1.0
+	RoundHistory []WorldSnapshot    `json:"round_history"`
+	Evidence     string             `json:"evidence,omitempty"` // domain context from DeepSearch (read-only, not voted on)
 }
 
 // WorldSnapshot is an immutable snapshot of the world at a given round.

@@ -20,11 +20,15 @@ const maxDomainConcurrency = 3
 // indicate are under pressure or disruption. Confidence is a 0.0–1.0 score
 // derived from source count and research depth.
 type DomainResearchResult struct {
-	Domain        engine.RuleDomain `json:"domain"`
-	AffectedRules []string          `json:"affected_rules"`
-	Confidence    float64           `json:"confidence"`
-	Summary       string            `json:"summary"`
-	CachedAt      time.Time         `json:"cached_at"`
+	Domain           engine.RuleDomain `json:"domain"`
+	AffectedRules    []string          `json:"affected_rules"`
+	Confidence       float64           `json:"confidence"`
+	Summary          string            `json:"summary"`
+	KeySignals       []string          `json:"key_signals"`
+	Threats          []string          `json:"threats"`
+	Opportunities    []string          `json:"opportunities"`
+	SynthesizedContext string          `json:"synthesized_context"`
+	CachedAt         time.Time         `json:"cached_at"`
 }
 
 // DomainResearcher enriches engine domains with real-world context via the
@@ -191,13 +195,93 @@ func (dr *DomainResearcher) saveCache(domain string, r *DomainResearchResult) er
 
 // buildDomainResult maps a ContextReport onto a DomainResearchResult.
 func buildDomainResult(domain engine.RuleDomain, report *ContextReport) *DomainResearchResult {
-	return &DomainResearchResult{
+	r := &DomainResearchResult{
 		Domain:        domain,
 		AffectedRules: extractAffectedRules(domain, report),
 		Confidence:    computeConfidence(report),
 		Summary:       report.Summary,
+		KeySignals:    report.RecentTrends,
+		Threats:       report.Threats,
+		Opportunities: report.Opportunities,
 		CachedAt:      time.Now().UTC(),
 	}
+	r.SynthesizedContext = synthesizeDomainContext(domain, r)
+	return r
+}
+
+// synthesizeDomainContext builds a structured markdown context string from a
+// DomainResearchResult. The output is stored in SynthesizedContext and injected
+// as World.Evidence so agents can reference it without it acting as a Rule.
+func synthesizeDomainContext(domain engine.RuleDomain, r *DomainResearchResult) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "## Domain: %s\n", domain)
+
+	b.WriteString("### Key Signals:\n")
+	for _, s := range r.KeySignals {
+		fmt.Fprintf(&b, "- %s\n", s)
+	}
+	if len(r.KeySignals) == 0 {
+		b.WriteString("- (no signals)\n")
+	}
+
+	b.WriteString("### Threats:\n")
+	for _, t := range r.Threats {
+		fmt.Fprintf(&b, "- %s\n", t)
+	}
+	if len(r.Threats) == 0 {
+		b.WriteString("- (none identified)\n")
+	}
+
+	b.WriteString("### Opportunities:\n")
+	for _, o := range r.Opportunities {
+		fmt.Fprintf(&b, "- %s\n", o)
+	}
+	if len(r.Opportunities) == 0 {
+		b.WriteString("- (none identified)\n")
+	}
+
+	return b.String()
+}
+
+// buildDomainQueries returns 2 domain-specialised search queries for the given
+// domain, company, and sector. These can be used to direct research agents
+// toward domain-specific signals rather than generic context.
+func buildDomainQueries(domain engine.RuleDomain, _, company, sector string) []string {
+	switch domain {
+	case engine.DomainMarket:
+		return []string{"competitive landscape " + sector, "pricing pressure " + company}
+	case engine.DomainTechnology:
+		return []string{"technology disruption " + sector, "AI adoption " + company}
+	case engine.DomainRegulation:
+		return []string{"regulatory changes " + sector, "compliance " + company}
+	case engine.DomainBehavior:
+		return []string{"workforce trends " + sector, "talent market " + company}
+	case engine.DomainCulture:
+		return []string{"consumer sentiment " + sector, "brand trust " + company}
+	case engine.DomainGeopolitics:
+		return []string{"geopolitical risk " + sector, "supply chain " + company}
+	case engine.DomainFinance:
+		return []string{"funding trends " + sector, "capital allocation " + company}
+	default:
+		return []string{sector + " market overview", company + " competitive position"}
+	}
+}
+
+// ResearchAllDomains is a convenience wrapper that researches all 7 engine
+// domains concurrently, honouring the maxDomainConcurrency semaphore.
+func (dr *DomainResearcher) ResearchAllDomains(
+	ctx context.Context,
+	question, company, sector string,
+) (map[engine.RuleDomain]*DomainResearchResult, error) {
+	return dr.ResearchDomains(ctx, []engine.RuleDomain{
+		engine.DomainMarket,
+		engine.DomainTechnology,
+		engine.DomainRegulation,
+		engine.DomainBehavior,
+		engine.DomainCulture,
+		engine.DomainGeopolitics,
+		engine.DomainFinance,
+	}, question, company, sector)
 }
 
 // extractAffectedRules infers which canonical rule IDs for the given domain are

@@ -523,11 +523,39 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		log.Printf("[FRACTURE] DeepSearch failed for sim %s: %v — continuing without research context", job.ID, dsErr)
 	}
 
-	// Step 3: Run the full FRACTURE simulation with enriched context
-	h.runSimulation(job, enrichedContext)
+	// Step 3: Run domain-specific research for all 7 domains concurrently
+	dr := deepsearch.NewDomainResearcher(dsAgent, h.db.DB)
+	domainResults, drErr := dr.ResearchAllDomains(researchCtx, job.Question, job.Company, job.Department)
+	if drErr != nil {
+		log.Printf("[FRACTURE] DomainResearcher partial error for sim %s: %v", job.ID, drErr)
+	}
+	if domainResults == nil {
+		domainResults = make(map[engine.RuleDomain]*deepsearch.DomainResearchResult)
+	}
+
+	// Persist each domain context to the DB
+	for domain, res := range domainResults {
+		if res == nil {
+			continue
+		}
+		afJSON, _ := json.Marshal(res.AffectedRules)
+		sigJSON, _ := json.Marshal(res.KeySignals)
+		_ = h.db.SaveDomainContext(job.ID, string(domain), db.DomainContextRow{
+			SimulationID:      job.ID,
+			Domain:            string(domain),
+			Context:           res.SynthesizedContext,
+			Signals:           string(sigJSON),
+			StabilityModifier: res.Confidence,
+			Confidence:        res.Confidence,
+			AffectedRules:     string(afJSON),
+		})
+	}
+
+	// Step 4: Run the full FRACTURE simulation with enriched context
+	h.runSimulation(job, enrichedContext, domainResults)
 }
 
-func (h *Handler) runSimulation(job *simJob, extraContext string) {
+func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults map[engine.RuleDomain]*deepsearch.DomainResearchResult) {
 	h.simMu.Lock()
 	job.Status = "running"
 	h.persistJob(job)
@@ -544,9 +572,25 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		return
 	}
 
-	// Build world from department domain
+	// Build world from department domain, enriched with DeepSearch domain context
 	domain := engine.RuleDomain(job.Department)
-	world := engine.DefaultWorldForDomain(domain, job.Question, extraContext)
+	simCtx := context.Background()
+	var domainContext string
+	var affectedRules []string
+	var confidence float64
+	if res, ok := domainResults[domain]; ok && res != nil {
+		domainContext = res.SynthesizedContext
+		affectedRules = res.AffectedRules
+		confidence = res.Confidence
+	}
+	if extraContext != "" {
+		if domainContext != "" {
+			domainContext = extraContext + "\n\n" + domainContext
+		} else {
+			domainContext = extraContext
+		}
+	}
+	world, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
 
 	// Build agents
 	conformistLLM := router.ForRole(llm.RoleConformist)
