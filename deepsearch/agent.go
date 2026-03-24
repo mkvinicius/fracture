@@ -676,3 +676,114 @@ func deduplicate(items []string) []string {
 	}
 	return result
 }
+
+
+// SynthesizeDomainContext extracts domain-specific context from a ContextReport
+// and returns a map of domain -> (context_text, affected_rules, confidence).
+// This is used to inject real-world evidence into the FRACTURE simulation.
+func (a *Agent) SynthesizeDomainContext(report *ContextReport) map[string]struct {
+	ContextText   string
+	AffectedRules []string
+	Confidence    float64
+} {
+	result := make(map[string]struct {
+		ContextText   string
+		AffectedRules []string
+		Confidence    float64
+	})
+
+	// Market domain: key players, threats, opportunities, sentiment
+	if len(report.KeyPlayers) > 0 || len(report.Threats) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText: fmt.Sprintf(
+				"Key Players: %s | Threats: %s | Opportunities: %s | Sentiment: %s",
+				strings.Join(report.KeyPlayers, ", "),
+				strings.Join(report.Threats, ", "),
+				strings.Join(report.Opportunities, ", "),
+				report.MarketSentiment,
+			),
+			AffectedRules: []string{"mkt-001", "mkt-002", "mkt-004", "mkt-005", "mkt-007"},
+			Confidence:    0.75,
+		}
+		result["market"] = ctx
+	}
+
+	// Technology domain: trends
+	if len(report.RecentTrends) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText: fmt.Sprintf("Technology Trends: %s", strings.Join(report.RecentTrends, ", ")),
+			AffectedRules: []string{"tech-001", "tech-003", "tech-006", "tech-007"},
+			Confidence:    0.70,
+		}
+		result["technology"] = ctx
+	}
+
+	// Regulation domain: threats often include regulatory changes
+	if len(report.Threats) > 0 {
+		threatText := strings.Join(report.Threats, ", ")
+		if strings.Contains(strings.ToLower(threatText), "regulat") || strings.Contains(strings.ToLower(threatText), "compliance") {
+			ctx := struct {
+				ContextText   string
+				AffectedRules []string
+				Confidence    float64
+			}{
+				ContextText:   fmt.Sprintf("Regulatory Threats: %s", threatText),
+				AffectedRules: []string{"reg-001", "reg-003", "reg-005", "reg-006"},
+				Confidence:    0.65,
+			}
+			result["regulation"] = ctx
+		}
+	}
+
+	// Behavior domain: market sentiment and opportunities
+	if report.MarketSentiment != "" {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Market Sentiment: %s", report.MarketSentiment),
+			AffectedRules: []string{"beh-003", "beh-005", "beh-007"},
+			Confidence:    0.60,
+		}
+		result["behavior"] = ctx
+	}
+
+	// Culture domain: recent trends and sentiment
+	if len(report.RecentTrends) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Cultural Trends: %s | Sentiment: %s", strings.Join(report.RecentTrends, ", "), report.MarketSentiment),
+			AffectedRules: []string{"cul-002", "cul-004", "cul-005", "cul-006"},
+			Confidence:    0.65,
+		}
+		result["culture"] = ctx
+	}
+
+	// Finance domain: threats and opportunities
+	if len(report.Opportunities) > 0 || len(report.Threats) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Financial Opportunities: %s | Threats: %s", strings.Join(report.Opportunities, ", "), strings.Join(report.Threats, ", ")),
+			AffectedRules: []string{"fin-001", "fin-003", "fin-005", "fin-006"},
+			Confidence:    0.70,
+		}
+		result["finance"] = ctx
+	}
+
+	return result
+}

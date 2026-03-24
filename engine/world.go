@@ -45,6 +45,7 @@ type World struct {
 	Rules        map[string]*Rule `json:"rules"`
 	TensionMap   map[string]float64 `json:"tension_map"` // ruleID -> tension 0.0-1.0
 	RoundHistory []WorldSnapshot  `json:"round_history"`
+	Evidence     string           `json:"evidence,omitempty"` // Real-world context from DeepSearch; does NOT become a rule
 }
 
 // WorldSnapshot is an immutable snapshot of the world at a given round.

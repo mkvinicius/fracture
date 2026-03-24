@@ -135,3 +135,74 @@ func financeRules() []*Rule {
 		{ID: "fin-008", Description: "Revenue multiples compress as growth slows and rates rise", Domain: DomainFinance, Stability: 0.60, IsActive: true},
 	}
 }
+
+// stabilityModifier computes a stability adjustment based on domain context evidence.
+// Confidence must be >= 0.6 to apply the modifier; result is clamped to [0.05, 0.95].
+func stabilityModifier(baseStability float64, confidence float64, contextEvidence string) float64 {
+	if confidence < 0.6 {
+		return baseStability
+	}
+
+	// Evidence presence reduces stability (increases fragility)
+	// because real-world context often reveals hidden vulnerabilities
+	adjustment := -0.15 * confidence
+
+	modified := baseStability + adjustment
+	// Clamp to [0.05, 0.95]
+	if modified < 0.05 {
+		return 0.05
+	}
+	if modified > 0.95 {
+		return 0.95
+	}
+	return modified
+}
+
+// DefaultWorldForDomainWithContext returns a World for the given domain,
+// with rules adjusted based on domain context evidence and affected rules list.
+//
+// Parameters:
+//   - domain: the RuleDomain to build (e.g., "market", "technology")
+//   - question: the user's research question (for logging/tracing)
+//   - extraContext: free-form context (e.g., from DeepSearch)
+//   - affectedRules: list of rule IDs that should have stability adjusted
+//   - confidence: 0.0-1.0 confidence in the context evidence (min 0.6 to apply)
+//
+// Returns: a World with rules from the domain, with affected rules' stability modified.
+func DefaultWorldForDomainWithContext(
+	domain RuleDomain,
+	question string,
+	extraContext string,
+	affectedRules []string,
+	confidence float64,
+) *World {
+	// Get the base world for this domain
+	baseWorld := DefaultWorldForDomain(domain, question, extraContext)
+
+	// If no affected rules or low confidence, return base world as-is
+	if len(affectedRules) == 0 || confidence < 0.6 {
+		return baseWorld
+	}
+
+	// Build a set of affected rule IDs for O(1) lookup
+	affectedSet := make(map[string]bool, len(affectedRules))
+	for _, id := range affectedRules {
+		affectedSet[id] = true
+	}
+
+	// Apply stability modifier ONLY to affected rules
+	baseWorld.mu.Lock()
+	defer baseWorld.mu.Unlock()
+
+	for ruleID, rule := range baseWorld.Rules {
+		if affectedSet[ruleID] {
+			rule.Stability = stabilityModifier(rule.Stability, confidence, extraContext)
+		}
+	}
+
+	// Inject evidence as metadata (does not become a rule)
+	baseWorld.Evidence = fmt.Sprintf("Domain: %s | Question: %s | Confidence: %.2f | Context: %s",
+		domain, question, confidence, extraContext)
+
+	return baseWorld
+}

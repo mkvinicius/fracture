@@ -5,6 +5,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.9.0] — 2026-03-23
+
+### Added
+- **Domain-aware DeepSearch**: pesquisa cada um dos 7 domínios (market, technology, regulation, behavior, culture, geopolitics, finance) separadamente com queries otimizadas por domínio.
+- **Per-domain stability calibration**: regras ajustadas por confiança da evidência real — `stabilityModifier()` aplica ajuste apenas em `affectedRules` com confidence ≥ 0.6.
+- **Evidence field em World struct**: armazena contexto real-world sem virar regra no grafo de tensão — metadado puro para auditoria.
+- **`stability_modifier` persistido**: nova coluna em `domain_contexts` table para auditoria histórica e calibração futura — permite comparar modifier aplicado vs resultado da simulação.
+- **`SynthesizeDomainContext()` pública**: extrai insights por domínio de `ContextReport` (market, technology, regulation, behavior, culture, finance) e retorna mapa de domain → {ContextText, AffectedRules, Confidence}.
+- **Integração em `runWithDeepSearch`**: após DeepSearch completar, persiste domain contexts com stability_modifier calculado como `-0.15 * confidence`.
+- **3 novos testes**: `TestSaveDomainContext`, `TestGetDomainContexts`, `TestDefaultWorldForDomainWithContext` — verifica Evidence preenchido, affected rules com stability reduzida, e idempotência.
+
+### Technical
+- `domain_contexts` table com índices em `simulation_id` e `domain`.
+- Stability clamp [0.05, 0.95] para evitar valores extremos.
+- Modifier aplicado APENAS em `affectedRules`, não em todas as regras do domínio.
+- Confidence mínima 0.6 para aplicar ajuste; valores menores não modificam estabilidade.
+- `DefaultWorldForDomainWithContext()` em `engine/world_domains.go` injeta evidências com ajuste automático.
+
+### Tests
+- **71 tests passing** (era 68). Todos os novos testes de domain contexts passam.
+
+---
+
 ## [1.8.0] — 2026-03-23
 
 ### Fixed

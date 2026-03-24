@@ -93,3 +93,20 @@ CREATE TABLE IF NOT EXISTS archetype_calibration (
     updated_at      INTEGER NOT NULL DEFAULT (unixepoch()),
     PRIMARY KEY (archetype_id, domain)
 );
+
+-- ─── DOMAIN CONTEXTS (real-world evidence from DeepSearch) ──────────────────────
+
+CREATE TABLE IF NOT EXISTS domain_contexts (
+    id                  TEXT PRIMARY KEY,
+    simulation_id       TEXT NOT NULL,
+    domain              TEXT NOT NULL,
+    context_text        TEXT NOT NULL,
+    affected_rules      TEXT NOT NULL,
+    confidence          REAL NOT NULL DEFAULT 0.6,
+    stability_modifier  REAL NOT NULL DEFAULT 0.0,
+    created_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+    FOREIGN KEY (simulation_id) REFERENCES simulations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_contexts_sim ON domain_contexts(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_domain_contexts_domain ON domain_contexts(domain);

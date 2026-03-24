@@ -519,6 +519,28 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		h.simMu.Unlock()
 		log.Printf("[FRACTURE] DeepSearch completed for sim %s: %d sources, %d tokens",
 			job.ID, len(contextReport.Sources), contextReport.TokensUsed)
+
+		// Synthesize domain contexts and persist them
+		domainContexts := dsAgent.SynthesizeDomainContext(contextReport)
+		for domain, ctx := range domainContexts {
+			contextID := fmt.Sprintf("%s:%s", job.ID, domain)
+			// Calculate stability modifier based on confidence
+			stabilityMod := -0.15 * ctx.Confidence
+			if stabilityMod < -0.95 {
+				stabilityMod = -0.95
+			}
+			if err := h.db.SaveDomainContext(
+				contextID,
+				job.ID,
+				domain,
+				ctx.ContextText,
+				ctx.AffectedRules,
+				ctx.Confidence,
+				stabilityMod,
+			); err != nil {
+				log.Printf("[FRACTURE] Failed to save domain context for %s:%s: %v", job.ID, domain, err)
+			}
+		}
 	} else if dsErr != nil {
 		log.Printf("[FRACTURE] DeepSearch failed for sim %s: %v — continuing without research context", job.ID, dsErr)
 	}

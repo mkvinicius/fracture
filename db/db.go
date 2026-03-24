@@ -349,3 +349,95 @@ func (d *DB) GetAuditLog(limit int) ([]AuditRow, error) {
 	}
 	return result, nil
 }
+
+
+// ─── Domain Contexts (real-world evidence from DeepSearch) ──────────────────────
+
+// DomainContextRow represents a single domain context entry.
+type DomainContextRow struct {
+	ID                string    `json:"id"`
+	SimulationID      string    `json:"simulation_id"`
+	Domain            string    `json:"domain"`
+	ContextText       string    `json:"context_text"`
+	AffectedRules     []string  `json:"affected_rules"` // JSON array of rule IDs
+	Confidence        float64   `json:"confidence"`
+	StabilityModifier float64   `json:"stability_modifier"` // Audit trail for calibration
+	CreatedAt         int64     `json:"created_at"`
+}
+
+// SaveDomainContext persists a domain context entry.
+func (d *DB) SaveDomainContext(id, simID, domain, contextText string, affectedRules []string, confidence, stabilityModifier float64) error {
+	rulesJSON, err := json.Marshal(affectedRules)
+	if err != nil {
+		return err
+	}
+
+	_, err = d.Exec(`
+		INSERT INTO domain_contexts (id, simulation_id, domain, context_text, affected_rules, confidence, stability_modifier, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(id) DO UPDATE SET context_text = excluded.context_text, confidence = excluded.confidence, stability_modifier = excluded.stability_modifier
+	`, id, simID, domain, contextText, string(rulesJSON), confidence, stabilityModifier)
+	return err
+}
+
+// GetDomainContexts retrieves all domain contexts for a simulation.
+func (d *DB) GetDomainContexts(simID string) ([]DomainContextRow, error) {
+	rows, err := d.Query(`
+		SELECT id, simulation_id, domain, context_text, affected_rules, confidence, stability_modifier, created_at
+		FROM domain_contexts
+		WHERE simulation_id = ?
+		ORDER BY created_at ASC
+	`, simID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DomainContextRow
+	for rows.Next() {
+		var r DomainContextRow
+		var rulesJSON string
+		if err := rows.Scan(&r.ID, &r.SimulationID, &r.Domain, &r.ContextText, &rulesJSON, &r.Confidence, &r.StabilityModifier, &r.CreatedAt); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(rulesJSON), &r.AffectedRules); err != nil {
+			r.AffectedRules = []string{}
+		}
+		result = append(result, r)
+	}
+	return result, nil
+}
+
+// GetDomainContextsByDomain retrieves domain contexts for a specific domain.
+func (d *DB) GetDomainContextsByDomain(simID, domain string) ([]DomainContextRow, error) {
+	rows, err := d.Query(`
+		SELECT id, simulation_id, domain, context_text, affected_rules, confidence, stability_modifier, created_at
+		FROM domain_contexts
+		WHERE simulation_id = ? AND domain = ?
+		ORDER BY created_at ASC
+	`, simID, domain)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DomainContextRow
+	for rows.Next() {
+		var r DomainContextRow
+		var rulesJSON string
+		if err := rows.Scan(&r.ID, &r.SimulationID, &r.Domain, &r.ContextText, &rulesJSON, &r.Confidence, &r.StabilityModifier, &r.CreatedAt); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(rulesJSON), &r.AffectedRules); err != nil {
+			r.AffectedRules = []string{}
+		}
+		result = append(result, r)
+	}
+	return result, nil
+}
+
+// DeleteDomainContext removes a domain context entry.
+func (d *DB) DeleteDomainContext(id string) error {
+	_, err := d.Exec(`DELETE FROM domain_contexts WHERE id = ?`, id)
+	return err
+}
