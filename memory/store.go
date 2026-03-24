@@ -52,6 +52,9 @@ func (s *Store) RecentActions(agentID string, n int) []engine.AgentAction {
 			TokensUsed:         tokens,
 		})
 	}
+	if rows.Err() != nil {
+		return nil
+	}
 	return actions
 }
 
@@ -76,6 +79,9 @@ func (s *Store) SimilarContexts(query string, n int) []string {
 			continue
 		}
 		candidates = append(candidates, text)
+	}
+	if rows.Err() != nil {
+		return nil
 	}
 
 	// Simple keyword overlap scoring
@@ -121,12 +127,6 @@ func (s *Store) SaveRound(simulationID string, round int, action engine.AgentAct
 		newRuleJSON = &str
 	}
 
-	fractureAccepted := sql.NullBool{}
-	if action.IsFractureProposal {
-		// Will be updated after voting
-		fractureAccepted = sql.NullBool{Valid: false}
-	}
-
 	_, err := s.db.Exec(`
 		INSERT INTO simulation_rounds
 			(id, simulation_id, round_number, agent_id, agent_type, action_text,
@@ -145,7 +145,6 @@ func (s *Store) SaveRound(simulationID string, round int, action engine.AgentAct
 		action.TokensUsed,
 		time.Now().Unix(),
 	)
-	_ = fractureAccepted
 	return err
 }
 

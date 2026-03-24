@@ -227,14 +227,17 @@ func (s *Simulation) processFractureProposal(
 }
 
 // Finalize collects the final result after Run() channel is drained.
+// It takes a safe snapshot of the world so the returned TensionMap is an
+// immutable copy, not a live reference to the mutable World map.
 func (s *Simulation) Finalize() SimulationResult {
+	finalWorld := s.cfg.World.Snapshot(len(s.results))
 	return SimulationResult{
 		SimulationID:   s.cfg.ID,
 		Question:       s.cfg.Question,
 		Rounds:         s.results,
 		FractureEvents: s.events,
-		FinalWorld:     s.cfg.World.Snapshot(len(s.results)),
-		TensionMap:     s.cfg.World.TensionMap,
+		FinalWorld:     finalWorld,
+		TensionMap:     finalWorld.TensionMap, // safe copy from Snapshot — not a live reference
 		TotalTokens:    s.tokens,
 		DurationMs:     time.Since(s.startAt).Milliseconds(),
 	}

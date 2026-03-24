@@ -157,6 +157,9 @@ func (d *DB) ListSimulations() ([]SimulationRow, error) {
 		}
 		result = append(result, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list simulations: %w", err)
+	}
 	return result, nil
 }
 
@@ -280,6 +283,9 @@ func (d *DB) ListJobs() ([]JobRow, error) {
 		}
 		result = append(result, j)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list jobs: %w", err)
+	}
 	return result, nil
 }
 
@@ -358,6 +364,9 @@ func (d *DB) GetDomainContexts(simulationID string) ([]DomainContextRow, error) 
 		}
 		result = append(result, r)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get domain contexts: %w", err)
+	}
 	return result, nil
 }
 
@@ -400,6 +409,9 @@ func (d *DB) GetAuditLog(limit int) ([]AuditRow, error) {
 			continue
 		}
 		result = append(result, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get audit log: %w", err)
 	}
 	return result, nil
 }

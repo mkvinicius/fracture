@@ -263,7 +263,10 @@ func (rc *RoleCaller) callOpenAI(ctx context.Context, system, user string, maxTo
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("read openai response body: %w", err)
+	}
 	var result openAIResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", 0, fmt.Errorf("parse openai response: %w", err)
@@ -327,7 +330,10 @@ func (rc *RoleCaller) callAnthropic(ctx context.Context, system, user string, ma
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("read anthropic response body: %w", err)
+	}
 	var result anthropicResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", 0, fmt.Errorf("parse anthropic response: %w", err)
@@ -393,7 +399,10 @@ func (rc *RoleCaller) callGoogle(ctx context.Context, system, user string, maxTo
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("read gemini response body: %w", err)
+	}
 	var result geminiResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", 0, fmt.Errorf("parse gemini response: %w", err)
@@ -442,7 +451,10 @@ func (rc *RoleCaller) callOllama(ctx context.Context, system, user string, maxTo
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", 0, fmt.Errorf("read ollama response body: %w", err)
+	}
 	var result ollamaResponse
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return "", 0, fmt.Errorf("parse ollama response: %w", err)

@@ -350,7 +350,9 @@ Synthesize the findings and identify knowledge gaps.`, question, prevContext, sn
 		Gaps     []string `json:"gaps"`
 	}
 	if err := json.Unmarshal([]byte(extractJSON(raw)), &resp); err != nil {
-		return raw, nil, tokens, nil
+		// Return error so the caller can fall back to extractSnippets — do NOT
+		// return raw LLM output as findings; it would contaminate agent prompts.
+		return "", nil, tokens, fmt.Errorf("parse synthesis response: %w", err)
 	}
 
 	return resp.Findings, resp.Gaps, tokens, nil

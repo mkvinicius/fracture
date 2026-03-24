@@ -3,6 +3,7 @@ package memory
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"math"
 )
 
@@ -74,25 +75,19 @@ func (c *Calibrator) recalibrateForSimulation(simulationID string, deltaScore fl
 			agentType string
 		}{id, agentType})
 	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
 	// For each agent, update their memory_weight in the archetypes table
 	for _, agent := range agents {
-		// Get current calibration
+		// Get current calibration; skip built-in agents not stored in archetypes table
 		var currentWeight float64
-		var feedbackCount int
-		err := c.db.QueryRow(`
+		if err := c.db.QueryRow(`
 			SELECT memory_weight FROM archetypes WHERE id = ?
-		`, agent.id).Scan(&currentWeight)
-		if err != nil {
-			continue // archetype not in DB (built-in), skip
+		`, agent.id).Scan(&currentWeight); err != nil {
+			continue
 		}
-
-		// Get feedback count for this archetype
-		c.db.QueryRow(`
-			SELECT COUNT(*) FROM feedback f
-			JOIN simulation_rounds sr ON f.simulation_id = sr.simulation_id
-			WHERE sr.agent_id = ?
-		`, agent.id).Scan(&feedbackCount)
 
 		// Exponential moving average: new_weight = old_weight * 0.9 + delta_adjustment * 0.1
 		// delta_score: -1.0 = completely wrong, 1.0 = perfect
@@ -103,9 +98,12 @@ func (c *Calibrator) recalibrateForSimulation(simulationID string, deltaScore fl
 		// Clamp between 0.3 and 2.0
 		newWeight = math.Max(0.3, math.Min(2.0, newWeight))
 
-		c.db.Exec(`
+		if _, err := c.db.Exec(`
 			UPDATE archetypes SET memory_weight = ?, updated_at = unixepoch() WHERE id = ?
-		`, newWeight, agent.id)
+		`, newWeight, agent.id); err != nil {
+			// Log but don't abort — calibration errors are non-fatal
+			_ = err // caller's logging responsibility; error is inherently non-fatal here
+		}
 	}
 
 	return nil
@@ -135,6 +133,9 @@ func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibrat
 			continue
 		}
 		calibrations = append(calibrations, cal)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get calibration report: %w", err)
 	}
 	return calibrations, nil
 }
