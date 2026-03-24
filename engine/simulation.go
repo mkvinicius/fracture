@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -19,6 +20,9 @@ type SimulationConfig struct {
 	Agents     []Agent
 	World      *World
 	Memory     AgentMemory
+	// Optional: council support. If CouncilLLM is nil, councils are skipped.
+	CouncilLLM LLMCaller
+	Mode       ModeConfig
 }
 
 // RoundResult is streamed to the caller after each round completes.
@@ -33,11 +37,15 @@ type RoundResult struct {
 
 // FractureEvent records a FRACTURE POINT activation and its outcome.
 type FractureEvent struct {
-	Round          int          `json:"round"`
-	ProposedBy     string       `json:"proposed_by"`
-	Proposal       RuleProposal `json:"proposal"`
-	Accepted       bool         `json:"accepted"`
-	VoteBreakdown  []VoteRecord `json:"vote_breakdown"`
+	Round         int          `json:"round"`
+	ProposedBy    string       `json:"proposed_by"`
+	Proposal      RuleProposal `json:"proposal"`
+	Accepted      bool         `json:"accepted"`
+	VoteBreakdown []VoteRecord `json:"vote_breakdown"`
+	// Confidence is a 0.0-1.0 measure of how certain this fracture outcome is.
+	// Derived from vote share, early convergence boost, and Shannon entropy penalty.
+	Confidence    float64  `json:"confidence"`
+	EvidenceTrail []string `json:"evidence_trail,omitempty"`
 }
 
 // Coalition represents a group of agents aligned around a common interest.
@@ -103,6 +111,9 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 	if cfg.MaxRounds == 0 {
 		cfg.MaxRounds = 40
 	}
+	if cfg.Mode.CouncilInterval == 0 {
+		cfg.Mode.CouncilInterval = 5
+	}
 	return &Simulation{
 		cfg:   cfg,
 		voter: NewVoter(cfg.Agents),
@@ -114,6 +125,12 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 func (s *Simulation) Run(ctx context.Context) <-chan RoundResult {
 	out := make(chan RoundResult, 4)
 	s.startAt = time.Now()
+
+	// Build councils once if a council LLM is configured
+	var councils []Council
+	if s.cfg.CouncilLLM != nil {
+		councils = BuildCouncils(s.cfg.CouncilLLM)
+	}
 
 	go func() {
 		defer close(out)
@@ -151,6 +168,15 @@ func (s *Simulation) Run(ctx context.Context) <-chan RoundResult {
 			// Count tokens
 			for _, a := range actions {
 				s.tokens += a.TokensUsed
+			}
+
+			// Run councils every CouncilInterval rounds (non-blocking on error)
+			interval := s.cfg.Mode.CouncilInterval
+			if interval <= 0 {
+				interval = 5
+			}
+			if len(councils) > 0 && round%interval == 0 {
+				RunAllCouncils(ctx, councils, s.cfg.World, round)
 			}
 
 			rr := RoundResult{
@@ -218,12 +244,66 @@ func (s *Simulation) processFractureProposal(
 		Proposal:      proposal,
 		Accepted:      voteResult,
 		VoteBreakdown: breakdown,
+		Confidence:    calculateFractureConfidence(breakdown, round, s.cfg.MaxRounds),
 	}
 
 	if voteResult {
 		s.cfg.World.ApplyProposal(proposal)
 	}
 	return event
+}
+
+// calculateFractureConfidence produces a 0.0-1.0 confidence score for a fracture event.
+// Formula:
+//   - Base = weighted yes-share (or no-share if rejected)
+//   - Early convergence boost: +0.10 if fracture fired in first 30% of rounds
+//   - Shannon entropy penalty: subtract H(p) * 0.15 where H(p) = -p*log2(p)-(1-p)*log2(1-p)
+//
+// Result is clamped to [0.05, 0.95].
+func calculateFractureConfidence(breakdown []VoteRecord, round, maxRounds int) float64 {
+	if len(breakdown) == 0 {
+		return 0.5
+	}
+
+	var totalWeight, yesWeight float64
+	for _, v := range breakdown {
+		totalWeight += v.Weight
+		if v.Vote {
+			yesWeight += v.Weight
+		}
+	}
+	if totalWeight == 0 {
+		return 0.5
+	}
+
+	p := yesWeight / totalWeight
+	// Use the majority share as base (whichever side won)
+	base := p
+	if base < 0.5 {
+		base = 1.0 - p
+	}
+
+	// Early convergence boost: fires in first 30% of rounds
+	var boost float64
+	if maxRounds > 0 && float64(round)/float64(maxRounds) <= 0.30 {
+		boost = 0.10
+	}
+
+	// Shannon entropy penalty
+	entropy := 0.0
+	if p > 0 && p < 1 {
+		entropy = -(p*(math.Log(p)/math.Log(2)) + (1-p)*(math.Log(1-p)/math.Log(2)))
+	}
+	penalty := entropy * 0.15
+
+	conf := base + boost - penalty
+	if conf < 0.05 {
+		return 0.05
+	}
+	if conf > 0.95 {
+		return 0.95
+	}
+	return conf
 }
 
 // Finalize collects the final result after Run() channel is drained.

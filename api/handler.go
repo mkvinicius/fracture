@@ -43,6 +43,7 @@ type simJob struct {
 	Question        string `json:"question"`
 	Department      string `json:"department"`
 	Rounds          int    `json:"rounds"`
+	Mode            string `json:"mode,omitempty"` // standard | premium
 	CreatedAt       int64  `json:"created_at"`
 	DurationMs      int64  `json:"duration_ms,omitempty"`
 	Error           string `json:"error,omitempty"`
@@ -122,6 +123,7 @@ func (h *Handler) persistJob(j *simJob) {
 		Question:        j.Question,
 		Department:      j.Department,
 		Rounds:          j.Rounds,
+		Mode:            j.Mode,
 		Company:         j.Company,
 		Error:           j.Error,
 		ResearchSources: j.ResearchSources,
@@ -398,6 +400,7 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Question   string   `json:"question"`
 		Department string   `json:"department"`
 		Rounds     int      `json:"rounds"`
+		Mode       string   `json:"mode"`
 		Context    string   `json:"context"`
 		URLs       []string `json:"urls"` // optional: company website + social media URLs
 	}
@@ -409,11 +412,18 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "question is required")
 		return
 	}
-	if body.Rounds <= 0 {
-		body.Rounds = 20
-	}
 	if body.Department == "" {
 		body.Department = "market"
+	}
+	// Determine mode and derive MaxRounds from it; caller-supplied rounds are ignored
+	// when a mode is provided — the mode is the source of truth.
+	simMode := engine.SimulationMode(body.Mode)
+	if simMode != engine.ModeStandard && simMode != engine.ModePremium {
+		simMode = engine.ModeStandard
+	}
+	modeCfg := engine.DefaultConfigForMode(simMode)
+	if body.Rounds <= 0 {
+		body.Rounds = modeCfg.MaxRounds
 	}
 
 	// Sanitize inputs
@@ -442,6 +452,7 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Question:   cleanQ,
 		Department: body.Department,
 		Rounds:     body.Rounds,
+		Mode:       string(simMode),
 		CreatedAt:  time.Now().Unix(),
 	}
 
@@ -548,6 +559,7 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 			StabilityModifier: res.Confidence,
 			Confidence:        res.Confidence,
 			AffectedRules:     string(afJSON),
+			SentimentScore:    res.SentimentScore,
 		})
 	}
 
@@ -603,26 +615,62 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 	// Build memory store
 	memStore := memory.NewStore(h.db.DB)
 
+	jobMode := engine.SimulationMode(job.Mode)
+	if jobMode != engine.ModeStandard && jobMode != engine.ModePremium {
+		jobMode = engine.ModeStandard
+	}
+	jobModeCfg := engine.DefaultConfigForMode(jobMode)
+
 	cfg := engine.SimulationConfig{
 		ID:         job.ID,
 		Question:   job.Question,
 		Department: job.Department,
-		MaxRounds:  job.Rounds,
+		MaxRounds:  jobModeCfg.MaxRounds,
 		Agents:     agents,
 		World:      world,
 		Memory:     memStore,
+		CouncilLLM: router.ForRole(llm.RoleSynthesis),
+		Mode:       jobModeCfg,
 	}
 
-	sim := engine.NewSimulation(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	// Drain the round channel and persist each round to the DB
-	for rr := range sim.Run(ctx) {
-		h.persistRound(job.ID, rr)
+	// Run ensemble: for Premium (EnsembleRuns=2) we run twice independently;
+	// for Standard (EnsembleRuns=1) this is a single run with no overhead.
+	var primaryResult engine.SimulationResult
+	ensembleCfg := engine.EnsembleConfig{Runs: jobModeCfg.EnsembleRuns}
+
+	ensembleResult, ensErr := engine.RunEnsemble(ctx, ensembleCfg, func(ctx context.Context, runIdx int) (*engine.RunResult, error) {
+		// Each ensemble run needs a fresh world (independent runs).
+		freshWorld, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
+		runCfg := cfg
+		runCfg.World = freshWorld
+		runCfg.ID = job.ID // keep same ID for round persistence on run 0 only
+
+		sim := engine.NewSimulation(runCfg)
+		for rr := range sim.Run(ctx) {
+			if runIdx == 0 {
+				// Only persist rounds for the primary run
+				h.persistRound(job.ID, rr)
+			}
+		}
+		res := sim.Finalize()
+		if runIdx == 0 {
+			primaryResult = res
+		}
+		return &engine.RunResult{
+			FractureEvents: res.FractureEvents,
+			FinalWorld:     res.FinalWorld,
+			TensionMap:     res.TensionMap,
+			TotalTokens:    res.TotalTokens,
+		}, nil
+	})
+	if ensErr != nil {
+		log.Printf("[FRACTURE] Ensemble error for sim %s: %v — using primary result only", job.ID, ensErr)
 	}
 
-	result := sim.Finalize()
+	result := primaryResult
 
 	// Generate final report — tracked in report_generations table
 	synthesisLLM := router.ForRole(llm.RoleSynthesis)
@@ -636,6 +684,10 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		log.Printf("[FRACTURE] ReportGenerator error for sim %s: %v", job.ID, reportErr)
 		_ = h.db.CompleteReportGen(reportGenID, "error", reportErr.Error(), 0, reportDurationMs)
 	} else if report != nil {
+		// Attach ensemble results to the report (Premium only — Standard has RunCount=1)
+		if ensErr == nil && ensembleResult != nil && ensembleResult.RunCount > 1 {
+			report.EnsembleResult = ensembleResult
+		}
 		_ = h.db.CompleteReportGen(reportGenID, "done", "", report.TotalTokens, reportDurationMs)
 	}
 

@@ -20,15 +20,17 @@ const maxDomainConcurrency = 3
 // indicate are under pressure or disruption. Confidence is a 0.0–1.0 score
 // derived from source count and research depth.
 type DomainResearchResult struct {
-	Domain           engine.RuleDomain `json:"domain"`
-	AffectedRules    []string          `json:"affected_rules"`
-	Confidence       float64           `json:"confidence"`
-	Summary          string            `json:"summary"`
-	KeySignals       []string          `json:"key_signals"`
-	Threats          []string          `json:"threats"`
-	Opportunities    []string          `json:"opportunities"`
-	SynthesizedContext string          `json:"synthesized_context"`
-	CachedAt         time.Time         `json:"cached_at"`
+	Domain             engine.RuleDomain `json:"domain"`
+	AffectedRules      []string          `json:"affected_rules"`
+	Confidence         float64           `json:"confidence"`
+	Summary            string            `json:"summary"`
+	KeySignals         []string          `json:"key_signals"`
+	Threats            []string          `json:"threats"`
+	Opportunities      []string          `json:"opportunities"`
+	SynthesizedContext string            `json:"synthesized_context"`
+	// SentimentScore is in [-1.0, 1.0]: >0 net positive, <0 net negative.
+	SentimentScore float64   `json:"sentiment_score"`
+	CachedAt       time.Time `json:"cached_at"`
 }
 
 // DomainResearcher enriches engine domains with real-world context via the
@@ -205,6 +207,9 @@ func buildDomainResult(domain engine.RuleDomain, report *ContextReport) *DomainR
 		Opportunities: report.Opportunities,
 		CachedAt:      time.Now().UTC(),
 	}
+	// Compute sentiment from the combined signal text
+	combined := report.Summary + " " + strings.Join(report.Threats, " ") + " " + strings.Join(report.Opportunities, " ")
+	r.SentimentScore = CalculateSentimentScore(combined)
 	r.SynthesizedContext = synthesizeDomainContext(domain, r)
 	return r
 }

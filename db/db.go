@@ -193,6 +193,7 @@ type JobRow struct {
 	Question        string `json:"question"`
 	Department      string `json:"department"`
 	Rounds          int    `json:"rounds"`
+	Mode            string `json:"mode,omitempty"`
 	Company         string `json:"company,omitempty"`
 	Error           string `json:"error,omitempty"`
 	ResearchSources int    `json:"research_sources,omitempty"`
@@ -213,14 +214,15 @@ type JobRow struct {
 func (d *DB) UpsertJob(j *JobRow) error {
 	_, err := d.Exec(`
 			INSERT INTO simulation_jobs
-				(id, status, question, department, rounds, company, error_msg,
+				(id, status, question, department, rounds, mode, company, error_msg,
 				 research_sources, research_tokens, duration_ms,
 				 current_round, current_tension, fracture_count,
 				 last_agent_name, last_agent_action, total_tokens,
 				 created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
 			ON CONFLICT(id) DO UPDATE SET
 				status           = excluded.status,
+				mode             = excluded.mode,
 				error_msg        = excluded.error_msg,
 				research_sources = excluded.research_sources,
 				research_tokens  = excluded.research_tokens,
@@ -232,7 +234,7 @@ func (d *DB) UpsertJob(j *JobRow) error {
 				last_agent_action = excluded.last_agent_action,
 				total_tokens     = excluded.total_tokens,
 				updated_at       = unixepoch()
-		`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Company, j.Error,
+		`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Mode, j.Company, j.Error,
 		j.ResearchSources, j.ResearchTokens, j.DurationMs,
 		j.CurrentRound, j.CurrentTension, j.FractureCount,
 		j.LastAgentName, j.LastAgentAction, j.TotalTokens,
@@ -244,12 +246,12 @@ func (d *DB) UpsertJob(j *JobRow) error {
 func (d *DB) GetJob(id string) (*JobRow, error) {
 	var j JobRow
 	err := d.QueryRow(`
-			SELECT id, status, question, department, rounds, company, error_msg,
+			SELECT id, status, question, department, rounds, mode, company, error_msg,
 			       research_sources, research_tokens, duration_ms, created_at, updated_at,
 			       current_round, current_tension, fracture_count,
 			       last_agent_name, last_agent_action, total_tokens
 			FROM simulation_jobs WHERE id = ?
-		`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
+		`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Error,
 		&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
 		&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
 		&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens)
@@ -262,7 +264,7 @@ func (d *DB) GetJob(id string) (*JobRow, error) {
 // ListJobs returns all jobs ordered by creation time (newest first).
 func (d *DB) ListJobs() ([]JobRow, error) {
 	rows, err := d.Query(`
-		SELECT id, status, question, department, rounds, company, error_msg,
+		SELECT id, status, question, department, rounds, mode, company, error_msg,
 		       research_sources, research_tokens, duration_ms, created_at, updated_at,
 		       current_round, current_tension, fracture_count,
 		       last_agent_name, last_agent_action, total_tokens
@@ -275,7 +277,7 @@ func (d *DB) ListJobs() ([]JobRow, error) {
 	var result []JobRow
 	for rows.Next() {
 		var j JobRow
-		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Company, &j.Error,
+		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Error,
 			&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
 			&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
 			&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens); err != nil {
@@ -324,6 +326,7 @@ type DomainContextRow struct {
 	StabilityModifier float64
 	Confidence        float64
 	AffectedRules     string  // JSON array
+	SentimentScore    float64
 	CachedAt          int64
 }
 
@@ -331,23 +334,24 @@ type DomainContextRow struct {
 func (d *DB) SaveDomainContext(simulationID, domain string, row DomainContextRow) error {
 	_, err := d.Exec(`
 		INSERT INTO domain_contexts
-			(simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, cached_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())
+			(simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, sentiment_score, cached_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
 		ON CONFLICT(simulation_id, domain) DO UPDATE SET
 			context            = excluded.context,
 			signals            = excluded.signals,
 			stability_modifier = excluded.stability_modifier,
 			confidence         = excluded.confidence,
 			affected_rules     = excluded.affected_rules,
+			sentiment_score    = excluded.sentiment_score,
 			cached_at          = excluded.cached_at
-	`, simulationID, domain, row.Context, row.Signals, row.StabilityModifier, row.Confidence, row.AffectedRules)
+	`, simulationID, domain, row.Context, row.Signals, row.StabilityModifier, row.Confidence, row.AffectedRules, row.SentimentScore)
 	return err
 }
 
 // GetDomainContexts returns all domain context rows for a simulation.
 func (d *DB) GetDomainContexts(simulationID string) ([]DomainContextRow, error) {
 	rows, err := d.Query(`
-		SELECT simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, cached_at
+		SELECT simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, sentiment_score, cached_at
 		FROM domain_contexts WHERE simulation_id = ?
 	`, simulationID)
 	if err != nil {
@@ -359,7 +363,7 @@ func (d *DB) GetDomainContexts(simulationID string) ([]DomainContextRow, error) 
 	for rows.Next() {
 		var r DomainContextRow
 		if err := rows.Scan(&r.SimulationID, &r.Domain, &r.Context, &r.Signals,
-			&r.StabilityModifier, &r.Confidence, &r.AffectedRules, &r.CachedAt); err != nil {
+			&r.StabilityModifier, &r.Confidence, &r.AffectedRules, &r.SentimentScore, &r.CachedAt); err != nil {
 			continue
 		}
 		result = append(result, r)

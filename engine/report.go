@@ -20,6 +20,15 @@ func NewReportGenerator(llm LLMCaller) *ReportGenerator {
 	return &ReportGenerator{llm: llm}
 }
 
+// callWithRetry calls the LLM once, and on failure retries once more.
+func (rg *ReportGenerator) callWithRetry(ctx context.Context, systemPrompt, userPrompt string, maxTokens int) (string, int, error) {
+	raw, tokens, err := rg.llm.Call(ctx, systemPrompt, userPrompt, maxTokens)
+	if err != nil {
+		raw, tokens, err = rg.llm.Call(ctx, systemPrompt, userPrompt, maxTokens)
+	}
+	return raw, tokens, err
+}
+
 // GenerateReport produces all six result types from a SimulationResult.
 func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *SimulationResult, question string) (*FullReport, error) {
 	// Prepare context summary for the LLM
@@ -96,9 +105,11 @@ type FullReport struct {
 	RuptureTimeline  []RuptureTimelineEvent `json:"rupture_timeline,omitempty"`
 	ActionPlaybook   *ActionPlaybook        `json:"action_playbook,omitempty"`
 	FractureEvents   []FractureEvent        `json:"fracture_events"`
-	TotalTokens      int                    `json:"total_tokens"`
-	DurationMs       int64                  `json:"duration_ms"`
-	Watermark        Watermark              `json:"watermark"`
+	// EnsembleResult is present only for Premium mode (multiple independent runs).
+	EnsembleResult *EnsembleResult `json:"ensemble_result,omitempty"`
+	TotalTokens    int             `json:"total_tokens"`
+	DurationMs     int64           `json:"duration_ms"`
+	Watermark      Watermark       `json:"watermark"`
 }
 
 // Watermark identifies the tool that generated this report.
@@ -255,7 +266,7 @@ Produce a Probable Future report in this exact JSON format:
   "key_assumptions": ["assumption 1", "assumption 2", "assumption 3"]
 }`, question, summary)
 
-	raw, _, err := rg.llm.Call(ctx, systemPrompt, userPrompt, 800)
+	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 800)
 	if err != nil {
 		return ProbableFuture{}, err
 	}
@@ -306,7 +317,7 @@ Produce exactly 3 rupture scenarios in this JSON format:
   }
 ]`, question, summary, strings.Join(tensionLines, "\n"))
 
-	raw, _, err := rg.llm.Call(ctx, systemPrompt, userPrompt, 1200)
+	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 1200)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +355,7 @@ Identify 2-4 coalitions in this JSON format:
   }
 ]`, question, summary)
 
-	raw, _, err := rg.llm.Call(ctx, systemPrompt, userPrompt, 600)
+	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 600)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +398,7 @@ Produce a timeline in this JSON format:
   }
 ]`, question, strings.Join(scenarioLines, "\n"), summary)
 
-	raw, _, err := rg.llm.Call(ctx, systemPrompt, userPrompt, 700)
+	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 700)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +441,7 @@ Produce an action playbook in this exact JSON format:
   "critical_risks": ["Risk 1", "Risk 2", "Risk 3"]
 }`, question, summary, strings.Join(howToBeFirst, "\n"))
 
-	raw, _, err := rg.llm.Call(ctx, systemPrompt, userPrompt, 800)
+	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 800)
 	if err != nil {
 		return nil, err
 	}
