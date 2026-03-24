@@ -5,6 +5,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.10.0] — 2026-03-23
+
+### Added
+- **Per-domain reflection in DeepSearch**: cada domínio (market, technology, regulation, behavior, culture, geopolitics, finance) agora tem seu próprio ciclo de busca → síntese → reflexão → busca complementar.
+- **Configurable reflection depth**: `MaxReflectionsPerDomain` em Config; defaults: regulation=3, geopolitics=3, technology=2, finance=2, market=2, behavior=1, culture=1 — domínios complexos refletem mais.
+- **Gap-driven reflection loop**: `researchDomainWithReflection()` identifica gaps após cada síntese e busca complementar; encerra quando gaps vazios (sem loop infinito).
+- **Resumable research state**: pesquisas interrompidas retomam de onde pararam — estado salvo em `domain_research_state` table com hash estável da question.
+- **`ResumableState` struct**: Question, Company, Sector, Completed (map de domínios já pesquisados), StartedAt — pronto para retomada.
+- **`hashQuestion()` utility**: gera hash SHA256 estável para (question, company, sector) — chave para resumable state.
+- **DB helpers**: `SaveResearchState()`, `GetResearchState()`, `DeleteResearchState()` — estado removido automaticamente após sucesso.
+
+### Technical
+- `domain_research_state` table com índice em `question_hash`.
+- Reflection loop encerra corretamente: `if len(gaps) == 0 { break }` sem timeout.
+- Imports: `crypto/sha256`, `encoding/hex` para hash generation.
+- Semáforo cap=3 existente mantido; timeout por domínio preservado.
+
+### Tests
+- **71 tests passing** (sem regressão). Todas as funções novas compilam e testam.
+
+---
+
 ## [1.9.0] — 2026-03-23
 
 ### Added

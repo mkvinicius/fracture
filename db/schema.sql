@@ -110,3 +110,18 @@ CREATE TABLE IF NOT EXISTS domain_contexts (
 
 CREATE INDEX IF NOT EXISTS idx_domain_contexts_sim ON domain_contexts(simulation_id);
 CREATE INDEX IF NOT EXISTS idx_domain_contexts_domain ON domain_contexts(domain);
+
+-- ─── DEEPSEARCH STATE (resumable research sessions) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS domain_research_state (
+    id            TEXT PRIMARY KEY,
+    question_hash TEXT NOT NULL,
+    question      TEXT NOT NULL,
+    company       TEXT NOT NULL,
+    sector        TEXT NOT NULL,
+    completed     TEXT NOT NULL DEFAULT '{}',
+    started_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_research_state_hash ON domain_research_state(question_hash);

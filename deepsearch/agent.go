@@ -15,7 +15,9 @@ package deepsearch
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -66,21 +68,35 @@ type ContextReport struct {
 
 // Config controls the deep search agent behaviour.
 type Config struct {
-	MaxRounds      int           // default 3
-	QueriesPerRound int          // default 4
-	Timeout        time.Duration // default 90s
-	SearchAPIKey   string        // optional: Tavily or SerpAPI key
-	SearchProvider string        // "tavily" | "serpapi" | "duckduckgo" (default, free)
+	MaxRounds               int           // default 3
+	QueriesPerRound         int           // default 4
+	Timeout                 time.Duration // default 90s
+	SearchAPIKey            string        // optional: Tavily or SerpAPI key
+	SearchProvider          string        // "tavily" | "serpapi" | "duckduckgo" (default, free)
+	MaxReflectionsPerDomain int           // default 0 (use per-domain defaults); if > 0, use same for all domains
 }
 
 // DefaultConfig returns sensible defaults that work without any API key.
 func DefaultConfig() Config {
 	return Config{
-		MaxRounds:       3,
-		QueriesPerRound: 4,
-		Timeout:         90 * time.Second,
-		SearchProvider:  "duckduckgo",
+		MaxRounds:               3,
+		QueriesPerRound:         4,
+		Timeout:                 90 * time.Second,
+		SearchProvider:          "duckduckgo",
+		MaxReflectionsPerDomain: 0, // use per-domain defaults
 	}
+}
+
+// domainReflectionDepth defines how many reflection cycles each domain gets by default.
+// Regulation and Geopolitics are complex; Behavior and Culture are simpler.
+var domainReflectionDepth = map[string]int{
+	"regulation":  3,
+	"geopolitics": 3,
+	"technology":  2,
+	"finance":     2,
+	"market":      2,
+	"behavior":    1,
+	"culture":     1,
 }
 
 // Agent is the deep search research agent.
@@ -103,6 +119,9 @@ func New(llm LLMCaller, cfg Config) *Agent {
 	}
 	if cfg.SearchProvider == "" {
 		cfg.SearchProvider = "duckduckgo"
+	}
+	if cfg.MaxReflectionsPerDomain < 0 {
+		cfg.MaxReflectionsPerDomain = 0
 	}
 	return &Agent{
 		llm: llm,
@@ -786,4 +805,202 @@ func (a *Agent) SynthesizeDomainContext(report *ContextReport) map[string]struct
 	}
 
 	return result
+}
+
+
+// ResumableState tracks the progress of a domain research session.
+// Used to resume interrupted searches without re-researching completed domains.
+type ResumableState struct {
+	Question  string
+	Company   string
+	Sector    string
+	Completed map[string]*DomainResearchResult
+	StartedAt time.Time
+}
+
+// DomainResearchResult holds the findings for a single domain.
+type DomainResearchResult struct {
+	Domain   string   `json:"domain"`
+	Findings string   `json:"findings"`
+	Gaps     []string `json:"gaps"`
+	Queries  []string `json:"queries"`
+	Sources  []string `json:"sources"`
+	Rounds   int      `json:"rounds"`
+}
+
+// researchDomainWithReflection runs a multi-round research cycle for a single domain.
+// It follows: search → synthesize → reflect → search complementary → repeat.
+// Returns the consolidated findings and the number of tokens used.
+func (a *Agent) researchDomainWithReflection(
+	ctx context.Context,
+	domain string,
+	question, company, sector string,
+	maxReflections int,
+) (*DomainResearchResult, int, error) {
+	result := &DomainResearchResult{
+		Domain:  domain,
+		Sources: []string{},
+		Rounds:  0,
+	}
+
+	totalTokens := 0
+	allFindings := []string{}
+	allQueries := []string{}
+	currentGaps := []string{}
+
+	// Step 1: Initial search for this domain
+	initialQueries := a.buildDomainQueries(domain, question, company, sector)
+	allQueries = append(allQueries, initialQueries...)
+
+	for _, q := range initialQueries {
+		results, err := a.search(ctx, q)
+		if err != nil {
+			log.Printf("[DeepSearch] domain %s search error for %q: %v", domain, q, err)
+			continue
+		}
+		for _, r := range results {
+			result.Sources = append(result.Sources, r.URL)
+		}
+	}
+
+	// Step 2: Synthesize initial findings
+	initialFindings, tokens, err := a.synthesizeDomainFindings(ctx, domain, question, initialQueries)
+	totalTokens += tokens
+	if err != nil {
+		log.Printf("[DeepSearch] domain %s synthesis error: %v", domain, err)
+		initialFindings = "Unable to synthesize findings"
+	}
+	allFindings = append(allFindings, initialFindings)
+	result.Findings = initialFindings
+	result.Rounds = 1
+
+	// Step 3: Reflection loop
+	for reflection := 1; reflection < maxReflections; reflection++ {
+		select {
+		case <-ctx.Done():
+			return result, totalTokens, ctx.Err()
+		default:
+		}
+
+		// Identify gaps
+		gaps, tokens, err := a.identifyGaps(ctx, domain, question, allFindings)
+		totalTokens += tokens
+		if err != nil {
+			log.Printf("[DeepSearch] domain %s gap identification error: %v", domain, err)
+			break
+		}
+
+		if len(gaps) == 0 {
+			log.Printf("[DeepSearch] domain %s: no gaps identified, ending reflection loop", domain)
+			break
+		}
+
+		currentGaps = gaps
+		log.Printf("[DeepSearch] domain %s reflection %d: identified %d gaps", domain, reflection, len(gaps))
+
+		// Complementary search based on gaps
+		complementaryQueries := a.buildComplementaryQueries(domain, gaps)
+		allQueries = append(allQueries, complementaryQueries...)
+
+		for _, q := range complementaryQueries {
+			results, err := a.search(ctx, q)
+			if err != nil {
+				log.Printf("[DeepSearch] domain %s complementary search error for %q: %v", domain, q, err)
+				continue
+			}
+			for _, r := range results {
+				result.Sources = append(result.Sources, r.URL)
+			}
+		}
+
+		// Re-synthesize with new findings
+		updatedFindings, tokens, err := a.synthesizeDomainFindings(ctx, domain, question, append(allQueries, gaps...))
+		totalTokens += tokens
+		if err != nil {
+			log.Printf("[DeepSearch] domain %s re-synthesis error: %v", domain, err)
+			break
+		}
+		allFindings = append(allFindings, updatedFindings)
+		result.Findings = updatedFindings
+		result.Rounds++
+	}
+
+	result.Gaps = currentGaps
+	result.Queries = deduplicate(allQueries)
+	result.Sources = deduplicate(result.Sources)
+
+	return result, totalTokens, nil
+}
+
+// buildDomainQueries generates initial search queries for a specific domain.
+func (a *Agent) buildDomainQueries(domain, question, company, sector string) []string {
+	domainKeywords := map[string][]string{
+		"market":      {"market trends", "competitive landscape", "market disruption", "market share"},
+		"technology":  {"technology trends", "innovation", "digital transformation", "tech adoption"},
+		"regulation":  {"regulatory changes", "compliance", "government policy", "legal framework"},
+		"behavior":    {"consumer behavior", "user adoption", "market adoption", "behavioral trends"},
+		"culture":     {"cultural trends", "social trends", "cultural shift", "societal changes"},
+		"geopolitics": {"geopolitical risks", "trade policy", "international relations", "political risks"},
+		"finance":     {"financial markets", "funding trends", "investment", "financial outlook"},
+	}
+
+	keywords, ok := domainKeywords[domain]
+	if !ok {
+		keywords = []string{"market trends", "industry analysis"}
+	}
+
+	var queries []string
+	for _, kw := range keywords {
+		queries = append(queries, fmt.Sprintf("%s %s %s %d", company, kw, sector, time.Now().Year()))
+	}
+	return queries
+}
+
+// buildComplementaryQueries generates follow-up queries based on identified gaps.
+func (a *Agent) buildComplementaryQueries(domain string, gaps []string) []string {
+	var queries []string
+	for _, gap := range gaps {
+		queries = append(queries, fmt.Sprintf("%s %s latest news", gap, domain))
+	}
+	return queries
+}
+
+// synthesizeDomainFindings uses the LLM to synthesize findings for a domain.
+func (a *Agent) synthesizeDomainFindings(ctx context.Context, domain, question string, queries []string) (string, int, error) {
+	prompt := fmt.Sprintf(
+		"Synthesize the key findings for the %s domain in response to: %s\nSearch queries used: %s\nProvide a concise summary of the most important insights.",
+		domain, question, strings.Join(queries, "; "),
+	)
+
+	findings, tokens, err := a.llm.Call(ctx, "You are a domain expert synthesizing research findings.", prompt, 500)
+	return findings, tokens, err
+}
+
+// identifyGaps uses the LLM to identify knowledge gaps in the current findings.
+func (a *Agent) identifyGaps(ctx context.Context, domain, question string, findings []string) ([]string, int, error) {
+	prompt := fmt.Sprintf(
+		"Given the question '%s' and these findings about the %s domain:\n%s\n\nIdentify 2-3 critical knowledge gaps that should be researched further. Return as a JSON array of strings.",
+		question, domain, strings.Join(findings, "\n"),
+	)
+
+	response, tokens, err := a.llm.Call(ctx, "You are a research analyst identifying gaps.", prompt, 300)
+	if err != nil {
+		return nil, tokens, err
+	}
+
+	gaps, err := extractStringArray(response)
+	if err != nil {
+		log.Printf("[DeepSearch] failed to parse gaps: %v", err)
+		return nil, tokens, nil
+	}
+
+	return gaps, tokens, nil
+}
+
+
+// hashQuestion generates a stable hash for a research question.
+// Used as key for resumable state in the database.
+func hashQuestion(question, company, sector string) string {
+	h := sha256.Sum256([]byte(question + "|" + company + "|" + sector))
+	return hex.EncodeToString(h[:8]) // First 16 hex chars (8 bytes)
 }
