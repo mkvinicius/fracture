@@ -1,363 +1,234 @@
 # FRACTURE
 
 > **Simulate how market rules break — and be the one to break them first.**
->
-> **Simule como as regras do mercado quebram — e seja o primeiro a quebrá-las.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![release](https://img.shields.io/badge/release-v1.5.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://golang.org)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)
+[![release](https://img.shields.io/badge/release-v2.5.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)](https://golang.org)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/mkvinicius/fracture/releases/latest)
+[![Tests](https://img.shields.io/badge/tests-115%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)
 
 ---
 
-## O que é o FRACTURE?
+## What is FRACTURE?
 
-FRACTURE é uma **ferramenta local de simulação estratégica de mercado** que roda no seu computador. Você faz uma pergunta estratégica, o sistema pesquisa automaticamente o mercado com o **DeepSearch**, e coloca **32 agentes de IA** — cada um com personalidade, objetivo e poder distintos — para simular como as regras do seu mercado podem ser reescritas ao longo de **40 rounds**.
+FRACTURE is a **local strategic market simulation tool** that runs on your computer. You ask a strategic question, the system automatically researches the market with **DeepSearch**, and then runs **56 AI agents** — each with a distinct personality, objective, and power level — to simulate how your market's rules might be rewritten over **20–50 rounds**.
 
-Quando a tensão acumula e a pressão estoura, acontece um **FRACTURE POINT**: uma regra fundamental muda. O relatório final com **6 partes** te diz o que vai acontecer, quando vai acontecer, e o que você deve fazer antes que aconteça.
+When tension accumulates and pressure explodes, a **FRACTURE POINT** occurs: a fundamental rule changes. The final report tells you what will happen, when, and what you should do before it does.
 
-**Seus dados ficam no seu computador. Sem assinatura. Sem nuvem. Sem servidor externo.**
+Everything runs **100% locally**. No cloud, no subscription, no data leaves your machine.
 
 ---
 
-## Como funciona
+## Key Features
+
+- **Multi-Agent Simulation Engine** — 56 agents across 7 domains (Market, Technology, Regulation, Behavior, Culture, Geopolitics, Finance). Conformist and Disruptor archetypes with configurable power weights.
+- **DeepSearch Integration** — Real-world context from web research injected into simulation before it runs. Per-domain research with reflection loops and resumable state.
+- **Domain Calibration** — Feedback loop: rate simulation accuracy → calibrate archetype weights per domain via EMA → future simulations improve automatically.
+- **RAG Memory** — Local TF-IDF semantic search over past simulations per company. No external embedding APIs required.
+- **Export** — Download full reports as structured Markdown or JSON.
+- **Comparison** — Compare 2–5 simulations side-by-side: common fractures, divergent outcomes, tension delta, confidence delta.
+- **Convergence Chart** — SVG tension chart per simulation showing how pressure built and where fracture points occurred.
+- **Persistent Job State** — Simulations survive server restarts. Progress tracked per round with live UI updates.
+- **Audit Log** — HMAC-signed audit trail for all simulation events.
+- **React Dashboard** — Embedded SPA served from the Go binary. No separate web server needed.
+- **Auto-updater** — Checks GitHub Releases at startup and notifies of new versions.
+
+---
+
+## Architecture
 
 ```
-1. Você faz uma pergunta estratégica
-         ↓
-2. 🔍 DeepSearch pesquisa automaticamente o mercado
-   (notícias recentes, concorrentes, tendências, mudanças regulatórias)
-         ↓
-3. FRACTURE constrói um Mundo com 55+ regras em 7 domínios
-         ↓
-4. 32 agentes de IA interagem por 40 rounds
-   — formam alianças, traem uns aos outros, tensionam as regras
-         ↓
-5. Quando a tensão estoura → FRACTURE POINT (uma regra fundamental muda)
-         ↓
-6. Relatório completo com 6 partes é gerado
+fracture/
+├── main.go                  # HTTP server, router, graceful shutdown
+├── api/
+│   └── handler.go           # REST API handlers (/api/v1/*)
+├── engine/
+│   ├── engine.go            # Simulation loop (rounds, voting, tension)
+│   ├── agents.go            # Agent types, personalities, permissions
+│   ├── world.go             # World state: Rules, TensionMap, Evidence
+│   ├── world_domains.go     # Domain-specific rule sets (7 domains)
+│   ├── report.go            # FullReport generation
+│   ├── export.go            # ReportToMarkdown()
+│   └── compare.go           # CompareReports()
+├── deepsearch/
+│   ├── agent.go             # DeepSearch agent (web search + LLM synthesis)
+│   └── domain_research.go   # DomainResearcher with semaphore + cache
+├── db/
+│   ├── db.go                # SQLite helpers (simulations, jobs, contexts)
+│   ├── schema.sql           # Database schema
+│   ├── migrations.go        # Versioned schema migrations
+│   └── rounds.go            # Round-level persistence + tension aggregation
+├── memory/
+│   └── memory.go            # TF-IDF RAG: index + similarity search
+├── security/
+│   ├── signer.go            # HMAC-SHA256 audit signing
+│   ├── sanitizer.go         # Input sanitization
+│   └── audit.go             # Audit logger
+├── telemetry/
+│   └── telemetry.go         # Anonymous opt-in ping
+├── updater/
+│   └── updater.go           # GitHub Releases version check
+└── dashboard/               # React + TypeScript SPA (Vite build)
+    └── src/
+        ├── App.tsx
+        └── pages/
+            ├── NewSimulationPage.tsx
+            ├── SimulationsPage.tsx
+            ├── ResultPage.tsx
+            ├── FeedbackPage.tsx
+            ├── ComparisonPage.tsx
+            └── ConvergencePage.tsx
 ```
 
 ---
 
-## DeepSearch — Contexto Real Antes da Simulação
+## Simulation Modes
 
-Antes de qualquer simulação começar, o FRACTURE pesquisa automaticamente:
-
-- Notícias recentes sobre o setor e concorrentes
-- Movimentos estratégicos de players do mercado
-- Tendências emergentes e tecnologias disruptivas
-- Mudanças regulatórias relevantes
-
-Os 32 agentes não trabalham com suposições genéricas — eles recebem **contexto real e atualizado** antes de interagir. Isso torna cada simulação específica para o seu mercado.
-
-### Import de Redes Sociais e Sites
-
-Na tela "New Simulation", adicione até 10 URLs de fontes externas:
-
-| Fonte | O que extrai |
-|---|---|
-| 🌐 Site da empresa | Posicionamento, produtos, diferenciais |
-| 💼 LinkedIn | Perfil corporativo, tamanho, crescimento |
-| 📸 Instagram | Identidade de marca, engajamento |
-| 𝕏 Twitter / X | Posicionamento público, tendências |
-| 📘 Facebook | Presença e comunidade |
-| ▶️ YouTube | Conteúdo estratégico e narrativa |
+| Mode     | Rounds | Runs | Agents | Use Case                          |
+|----------|--------|------|--------|-----------------------------------|
+| Standard | 30     | 1    | 56     | Quick analysis, daily use         |
+| Premium  | 50     | 2    | 56     | Deep research, critical decisions |
 
 ---
 
-## Os 32 Agentes
+## REST API
 
-### 20 Conformistas — defendem as regras atuais
+All endpoints are under `/api/v1/`. Legacy `/api/*` paths redirect to `/api/v1/*` with HTTP 308 (method-preserving).
 
-| Agente | Papel |
-|---|---|
-| Skeptical Consumer | Questiona mudanças, exige provas |
-| Enthusiast Consumer | Early adopter, amplifica tendências |
-| Established Competitor | Protege posição de mercado |
-| Emerging Competitor | Desafia incumbentes |
-| Regulator | Aplica compliance e regulação |
-| Strategic Supplier | Controla insumos críticos |
-| Investor | Aloca capital baseado em retorno |
-| Key Employee | Molda cultura interna |
-| Legacy Media | Controla narrativa e percepção pública |
-| Corporate B2B Buyer | Avesso a risco, valoriza estabilidade |
-| Distribution Channel Partner | Protege margens de intermediário |
-| Labor Union | Defende direitos e salários |
-| Secondary Supplier | Redundância na cadeia de suprimentos |
-| Industry Analyst | Molda expectativas de mercado |
-| Insurance Underwriter | Precifica e transfere risco |
-| Pension Fund Manager | Capital de longo prazo, baixa tolerância a risco |
-| Platform Ecosystem Partner | Dependente das regras da plataforma |
-| Local Government | Aplica regulação local |
-| Traditional Retailer | Varejo físico, resiste à digitalização |
-| Academic Institution | Valida conhecimento e credenciais |
+### Simulations
 
-### 12 Disruptores — desafiam e reescrevem as regras
+| Method   | Path                                    | Description                        |
+|----------|-----------------------------------------|------------------------------------|
+| `POST`   | `/api/v1/simulate`                      | Start a new simulation             |
+| `GET`    | `/api/v1/simulations`                   | List all simulations (with status) |
+| `GET`    | `/api/v1/simulations/{id}`              | Get simulation status/progress     |
+| `DELETE` | `/api/v1/simulations/{id}`              | Delete a simulation                |
+| `GET`    | `/api/v1/simulations/{id}/report`       | Full FullReport JSON               |
+| `GET`    | `/api/v1/simulations/{id}/export/markdown` | Download report as Markdown     |
+| `GET`    | `/api/v1/simulations/{id}/export/json` | Download report as JSON            |
+| `GET`    | `/api/v1/simulations/{id}/events`       | Tension per round (convergence)    |
+| `GET`    | `/api/v1/simulations/compare?ids=a,b`  | Compare 2–5 simulations            |
 
-| Agente | Papel |
-|---|---|
-| Tech Innovator | Constrói tecnologia que torna regras antigas obsoletas |
-| Business Model Changer | Reescreve como valor é criado e capturado |
-| Progressive Regulator | Pressiona por novos marcos regulatórios |
-| Organized Consumer | Ação coletiva para forçar mudança de mercado |
-| Venture Capital Fund | Financia apostas assimétricas em ruptura |
-| Big Tech Entrant | Entra em mercados adjacentes com alavancagem de plataforma |
-| Social Movement | Muda regras culturais por pressão coletiva |
-| International Regulator | Impõe requisitos de compliance transfronteiriços |
-| Open Source Community | Commoditiza tecnologia proprietária |
-| Sovereign Wealth Fund | Capital estatal com objetivos geopolíticos |
-| Adjacent Startup | Ataca de um ângulo inesperado |
-| Whistleblower | Expõe regras ocultas que mantêm o status quo |
+### Feedback & Calibration
 
----
+| Method | Path                    | Description                            |
+|--------|-------------------------|----------------------------------------|
+| `POST` | `/api/v1/feedback`      | Submit accuracy feedback               |
+| `GET`  | `/api/v1/calibration`   | Get archetype calibration weights      |
 
-## O Relatório Final — 6 Partes
+### Knowledge Base
 
-Após a simulação, você recebe um relatório completo com:
+| Method   | Path                              | Description                         |
+|----------|-----------------------------------|-------------------------------------|
+| `GET`    | `/api/v1/archetypes`              | List agent archetypes               |
+| `GET`    | `/api/v1/rules`                   | List world rules                    |
+| `GET`    | `/api/v1/rules/domain/{domain}`   | List rules for a specific domain    |
+| `POST`   | `/api/v1/documents`               | Upload RAG document for a company   |
+| `GET`    | `/api/v1/documents/{company_id}`  | List RAG documents for a company    |
 
-| Parte | O que entrega |
-|---|---|
-| **1. Futuro Provável** | O que acontece se nada mudar — com probabilidade e prazo |
-| **2. Mapa de Tensão** | Quais regras estão mais próximas de quebrar e por quê |
-| **3. Cenários de Ruptura** | Os 3 caminhos de FRACTURE POINT mais prováveis |
-| **4. Mapa de Coalizões** | Quem se aliou com quem durante a simulação |
-| **5. Linha do Tempo** | Quando cada ruptura deve acontecer (90 dias / 1 ano / 3 anos) |
-| **6. Playbook de Ação** | O que você deve fazer agora para se posicionar antes da quebra |
+### System
 
-Todos os relatórios incluem **watermark** com versão, licença e URL do projeto.
+| Method | Path             | Description              |
+|--------|------------------|--------------------------|
+| `GET`  | `/api/v1/health` | Health check             |
+| `GET`  | `/api/v1/config` | Get configuration        |
+| `PUT`  | `/api/v1/config` | Update configuration     |
+| `GET`  | `/api/v1/audit`  | Recent audit log entries |
 
 ---
 
-## Os 7 Domínios do Mundo
+## Install
 
-O FRACTURE simula 55+ regras distribuídas em 7 domínios:
+### Pre-built binary (recommended)
 
-| Domínio | Regras | Exemplos |
-|---|---|---|
-| **Market** | 12 | Switching costs, network effects, poder de precificação |
-| **Technology** | 10 | Custos de IA, commoditização open source, edge computing |
-| **Regulation** | 8 | Antitruste, auditabilidade de IA, sandboxes regulatórios |
-| **Behavior** | 9 | Trabalho remoto, modelos de compensação, liderança |
-| **Culture** | 8 | Creator economy, autenticidade, compras orientadas por comunidade |
-| **Geopolitics** | 8 | Sanções comerciais, soberania digital, resiliência de supply chain |
-| **Finance** | 8 | Alocação de capital, ESG, tokenização, múltiplos de receita |
+Download the latest release from [GitHub Releases](https://github.com/mkvinicius/fracture/releases/latest):
 
----
-
-## Notificação Automática de Atualização
-
-Ao abrir o FRACTURE, ele verifica silenciosamente se há uma versão nova no GitHub. Se houver, um banner discreto aparece no canto superior direito com link direto para download. Sem precisar verificar manualmente.
-
----
-
-## Segurança
-
-- **Proteção contra prompt injection** — todos os dados externos são sanitizados antes de chegar aos agentes
-- **Prompts assinados com HMAC** — cada prompt de agente é assinado para detectar adulteração
-- **Log de auditoria imutável** — cada evento da simulação é encadeado com assinaturas HMAC
-- **Sandboxing de agentes** — agentes não têm acesso ao sistema de arquivos ou rede
-- **Local-first** — todos os dados ficam na sua máquina
-
----
-
-## Telemetria — Opt-in, Transparente
-
-O FRACTURE coleta dados anônimos **apenas se você autorizar** durante o onboarding ou nas configurações:
-
-**O que é coletado:**
-- Install ID (UUID anônimo, gerado aleatoriamente, nunca vinculado a você)
-- Sistema operacional e arquitetura
-- País (derivado do IP, último octeto mascarado)
-- Versão do FRACTURE
-
-**O que nunca é coletado:** conteúdo de simulações, chaves de API, dados da empresa ou qualquer informação pessoal.
-
-Você pode ativar ou desativar a qualquer momento em **Settings → Privacy & Telemetry**.
-
----
-
-## Instalação
-
-### Download direto (recomendado)
-
-Acesse a [página de releases](https://github.com/mkvinicius/fracture/releases/latest) e baixe o arquivo para seu sistema:
-
-| Sistema | Arquivo |
-|---|---|
-| Linux x86_64 | `fracture-linux-amd64.tar.gz` |
-| Linux ARM64 | `fracture-linux-arm64.tar.gz` |
-| Windows x86_64 | `fracture-windows-amd64.zip` |
-
-**Linux:**
 ```bash
-tar -xzf fracture-linux-amd64.tar.gz
+# Linux (amd64)
+curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-linux-amd64 -o fracture
 chmod +x fracture
 ./fracture
 ```
 
-**Windows:**
-Extraia o `.zip` e execute `fracture-windows-amd64.exe`.
+The dashboard opens automatically in your browser at `http://localhost:3000`.
 
-O FRACTURE abre automaticamente no navegador em `http://localhost:7432`.
+### Build from source
 
-### Compilar do código-fonte
-
-**Requisitos:** Go 1.25+, Node.js 20+, pnpm
+Requirements: Go 1.21+, Node.js 18+
 
 ```bash
-git clone https://github.com/mkvinicius/fracture.git
+git clone https://github.com/mkvinicius/fracture
 cd fracture
-make build
+
+# Build dashboard
+cd dashboard && npm install && npm run build && cd ..
+
+# Build binary
+go build -o fracture .
 ./fracture
 ```
 
-Para desenvolvimento com hot reload:
+---
+
+## Configuration
+
+FRACTURE stores data in the platform data directory:
+- **Linux**: `~/.local/share/FRACTURE/data.db`
+- **macOS**: `~/Library/Application Support/FRACTURE/data.db`
+- **Windows**: `%APPDATA%\FRACTURE\data.db`
+
+### Environment Variables
+
+| Variable          | Description                                                       |
+|-------------------|-------------------------------------------------------------------|
+| `OPENAI_API_KEY`  | OpenAI API key (LLM calls in DeepSearch + simulation narrative)   |
+| `TAVILY_API_KEY`  | Tavily search key (optional, improves DeepSearch quality)         |
+| `SERPAPI_KEY`     | SerpAPI key (optional, fallback web search)                       |
+
+If no LLM API key is set, FRACTURE runs in **heuristic mode** — simulations complete using deterministic rules without LLM narrative generation.
+
+---
+
+## Agents
+
+56 agents across 7 domains:
+
+**Conformists (37)** — defend existing rules, resist change, vote against fractures.
+**Disruptors (19)** — challenge the status quo, propose new rules, push for fractures.
+
+Each agent has:
+- `PowerWeight` — influence on voting (calibrated by feedback loop)
+- `Personality` — bias profile (risk tolerance, contrarianism, etc.)
+- `Domain` — specialization area
+- `AgentMemory` — stores past actions for behavioral consistency
+
+Agent calibration is updated automatically when you submit feedback: accurate predictions increase an archetype's weight, inaccurate ones decrease it.
+
+---
+
+## Development
+
 ```bash
-make dev
+# Run all tests (115 tests)
+go test ./...
+
+# Run specific package
+go test ./engine/... -v
+
+# Build packages (no dashboard embed needed)
+go build ./api/... ./engine/...
 ```
 
----
+### Adding a new domain
 
-## Configuração Mínima
-
-| Componente | Mínimo | Recomendado |
-|---|---|---|
-| OS | Windows 10 64-bit / Ubuntu 20.04+ | Windows 11 / Ubuntu 22.04+ |
-| RAM | 4 GB | 8 GB+ |
-| CPU | Dual-core 64-bit | 4+ núcleos |
-| Disco | 50 MB | 100 MB |
-| Internet | Sim (para API de IA e DeepSearch) | Conexão estável |
-| API Key | OpenAI, Anthropic, Google ou Ollama | OpenAI GPT-4o mini |
-
-Sem Docker. Sem banco de dados externo. Sem instalação de dependências.
+1. Add a constant to `engine/world.go`: `DomainMyDomain RuleDomain = "mydomain"`
+2. Add a rule set function in `engine/world_domains.go`: `func myDomainRules() []*Rule { ... }`
+3. Add a case in `DefaultWorldForDomain` switch statement
+4. Add domain-specific agents in `engine/agents.go`
 
 ---
 
-## Configuração da API de IA
+## License
 
-Na primeira execução, acesse **Settings → API Keys** e adicione sua chave:
-
-| Provedor | Modelo padrão | Custo estimado por simulação |
-|---|---|---|
-| OpenAI | GPT-4o mini | ~$0,20–0,40 |
-| Anthropic | Claude Haiku | ~$0,15–0,30 |
-| Google | Gemini Flash | ~$0,10–0,25 |
-| Ollama | Llama 3 (local) | Grátis (sem internet) |
-
-As chaves são armazenadas localmente no SQLite da sua máquina e **nunca enviadas a nenhum servidor externo**.
-
----
-
-## Integração MCP (Cursor, VS Code, Windsurf)
-
-Use o FRACTURE diretamente no seu editor de código via Model Context Protocol:
-
-```json
-{
-  "mcpServers": {
-    "fracture": {
-      "command": "/caminho/para/fracture",
-      "args": ["--mcp"],
-      "env": {}
-    }
-  }
-}
-```
-
-Ferramentas disponíveis via MCP:
-- `fracture_simulate` — roda uma simulação completa
-- `fracture_list_simulations` — lista simulações anteriores
-- `fracture_get_report` — recupera o relatório de uma simulação
-
----
-
-## Diferença para o MiroFish
-
-| | MiroFish | FRACTURE |
-|---|---|---|
-| **Abordagem** | Prevê tendências com dados históricos | Simula o que ainda não aconteceu |
-| **Método** | Análise de dados passados | Simulação multi-agente com DeepSearch |
-| **Agentes** | Nenhum | 32 agentes de IA com personalidades distintas |
-| **Regras** | Modelo fixo | 55+ regras mutáveis que quebram sob pressão |
-| **Output** | Previsão de tendências | Relatório de 6 partes + Playbook de Ação |
-| **Posicionamento** | Te diz o que vai acontecer | Te posiciona antes da quebra acontecer |
-
----
-
-## Arquitetura
-
-```
-fracture/
-  main.go                  ← Entry point, HTTP server, browser open
-  api/handler.go           ← REST API routes + DeepSearch integration
-  engine/
-    world.go               ← Rule graph with stability weights
-    agent.go               ← Agent interface and base types
-    simulation.go          ← Main simulation loop (40 rounds)
-    voting.go              ← Weighted consensus voting
-    report.go              ← Report generation (6 output types + watermark)
-    world_domains.go       ← 55+ rules across 7 domains
-  archetypes/
-    conformists.go         ← 20 Conformist archetypes
-    disruptors.go          ← 12 Disruptor archetypes
-  deepsearch/
-    agent.go               ← Multi-round deep search with reflection
-  contextextractor/
-    extractor.go           ← URL scraping (site + social media)
-  updater/
-    updater.go             ← Auto-update check via GitHub API
-  memory/
-    store.go               ← SQLite-backed agent memory
-    calibration.go         ← Feedback loop + archetype calibration
-  security/
-    sanitizer.go           ← Prompt injection protection
-    hmac.go                ← HMAC signing + immutable audit log
-  telemetry/
-    telemetry.go           ← Anonymous usage tracking (opt-in)
-  llm/client.go            ← LLM-agnostic client (semaphore, retry, cache)
-  db/
-    db.go                  ← SQLite helpers
-    schema.sql             ← Database schema
-  dashboard/               ← React + Tailwind frontend (embedded in binary)
-```
-
----
-
-## Histórico de Versões
-
-| Versão | Principais mudanças |
-|---|---|
-| **v1.4.1** | 20 testes unitários, correção DetectSourceType, versão interna corrigida |
-| **v1.4.0** | DeepSearch (pesquisa automática de mercado), import de redes sociais, notificação de atualização |
-| **v1.3.0** | Import de URLs externas, notificação de atualização automática |
-| **v1.2.0** | 32 agentes, 40 rounds, 55+ regras em 7 domínios, relatório com 6 partes + Playbook de Ação |
-| **v1.1.0** | Telemetria opt-in, watermark nos relatórios, AGPL-3.0, SECURITY.md |
-| **v1.0-alpha** | Lançamento inicial — 12 agentes, 20 rounds, 3 outputs |
-
----
-
-## Licença
-
-FRACTURE é distribuído sob a [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
-
-Isso significa:
-- Você pode usar, estudar e modificar o FRACTURE livremente
-- Se você distribuir uma versão modificada (inclusive como serviço web), deve disponibilizar o código-fonte sob a mesma licença
-- Uso comercial requer conformidade com os termos da AGPL-3.0
-
----
-
-## Links
-
-- 📦 [Releases e Downloads](https://github.com/mkvinicius/fracture/releases/latest)
-- 🐛 [Reportar um bug](https://github.com/mkvinicius/fracture/issues)
-- 💡 [Sugerir uma feature](https://github.com/mkvinicius/fracture/issues)
-- 📄 [Licença AGPL-3.0](LICENSE)
-- 🔒 [Política de Segurança](SECURITY.md)
-
----
-
-© 2025 FRACTURE contributors
+AGPL-3.0 — see [LICENSE](LICENSE).
