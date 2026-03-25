@@ -123,3 +123,18 @@ CREATE TABLE IF NOT EXISTS rag_documents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rag_company ON rag_documents(company_id, doc_type);
+
+-- ─── DEEPSEARCH STATE (resumable research sessions) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS domain_research_state (
+    id            TEXT PRIMARY KEY,
+    question_hash TEXT NOT NULL,
+    question      TEXT NOT NULL,
+    company       TEXT NOT NULL,
+    sector        TEXT NOT NULL,
+    completed     TEXT NOT NULL DEFAULT '{}',
+    started_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_research_state_hash ON domain_research_state(question_hash);

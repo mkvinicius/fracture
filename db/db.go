@@ -384,6 +384,38 @@ func (d *DB) SaveFeedback(simulationID, outcome, notes string) error {
 	return err
 }
 
+// GetDomainContextsByDomain returns domain context rows for a specific domain within a simulation.
+func (d *DB) GetDomainContextsByDomain(simulationID, domain string) ([]DomainContextRow, error) {
+	rows, err := d.Query(`
+		SELECT simulation_id, domain, context, signals, stability_modifier, confidence, affected_rules, sentiment_score, cached_at
+		FROM domain_contexts WHERE simulation_id = ? AND domain = ?
+	`, simulationID, domain)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []DomainContextRow
+	for rows.Next() {
+		var r DomainContextRow
+		if err := rows.Scan(&r.SimulationID, &r.Domain, &r.Context, &r.Signals,
+			&r.StabilityModifier, &r.Confidence, &r.AffectedRules, &r.SentimentScore, &r.CachedAt); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("get domain contexts by domain: %w", err)
+	}
+	return result, nil
+}
+
+// DeleteDomainContext removes all domain context entries for a simulation+domain pair.
+func (d *DB) DeleteDomainContext(simulationID, domain string) error {
+	_, err := d.Exec(`DELETE FROM domain_contexts WHERE simulation_id = ? AND domain = ?`, simulationID, domain)
+	return err
+}
+
 // ─── Audit Log ───────────────────────────────────────────────────────────────
 
 // AuditRow is a single audit log entry.
@@ -418,4 +450,57 @@ func (d *DB) GetAuditLog(limit int) ([]AuditRow, error) {
 		return nil, fmt.Errorf("get audit log: %w", err)
 	}
 	return result, nil
+}
+
+// ─── DeepSearch State (resumable research sessions) ──────────────────────────────
+
+// ResearchStateRow represents a resumable research session state.
+type ResearchStateRow struct {
+	ID            string `json:"id"`
+	QuestionHash  string `json:"question_hash"`
+	Question      string `json:"question"`
+	Company       string `json:"company"`
+	Sector        string `json:"sector"`
+	Completed     string `json:"completed"` // JSON: map[domain]*DomainResearchResult
+	StartedAt     int64  `json:"started_at"`
+	UpdatedAt     int64  `json:"updated_at"`
+}
+
+// SaveResearchState persists a research session state.
+func (d *DB) SaveResearchState(row ResearchStateRow) error {
+	_, err := d.Exec(`
+		INSERT INTO domain_research_state (id, question_hash, question, company, sector, completed, started_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(id) DO UPDATE SET completed = excluded.completed, updated_at = unixepoch()
+	`, row.ID, row.QuestionHash, row.Question, row.Company, row.Sector, row.Completed, row.StartedAt)
+	return err
+}
+
+// GetResearchState retrieves a research session state by question hash.
+func (d *DB) GetResearchState(questionHash string) (*ResearchStateRow, error) {
+	row := &ResearchStateRow{}
+	err := d.QueryRow(`
+		SELECT id, question_hash, question, company, sector, completed, started_at, updated_at
+		FROM domain_research_state
+		WHERE question_hash = ?
+		ORDER BY updated_at DESC
+		LIMIT 1
+	`, questionHash).Scan(&row.ID, &row.QuestionHash, &row.Question, &row.Company, &row.Sector, &row.Completed, &row.StartedAt, &row.UpdatedAt)
+	
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
+// DeleteResearchState removes a research session state.
+func (d *DB) DeleteResearchState(questionHash string) error {
+	_, err := d.Exec(`
+		DELETE FROM domain_research_state
+		WHERE question_hash = ?
+	`, questionHash)
+	return err
 }

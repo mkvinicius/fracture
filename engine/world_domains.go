@@ -200,3 +200,4 @@ func financeRules() []*Rule {
 		{ID: "fin-008", Description: "Revenue multiples compress as growth slows and rates rise", Domain: DomainFinance, Stability: 0.60, IsActive: true},
 	}
 }
+

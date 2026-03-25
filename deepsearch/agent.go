@@ -15,7 +15,9 @@ package deepsearch
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -66,21 +68,35 @@ type ContextReport struct {
 
 // Config controls the deep search agent behaviour.
 type Config struct {
-	MaxRounds      int           // default 3
-	QueriesPerRound int          // default 4
-	Timeout        time.Duration // default 90s
-	SearchAPIKey   string        // optional: Tavily or SerpAPI key
-	SearchProvider string        // "tavily" | "serpapi" | "duckduckgo" (default, free)
+	MaxRounds               int           // default 3
+	QueriesPerRound         int           // default 4
+	Timeout                 time.Duration // default 90s
+	SearchAPIKey            string        // optional: Tavily or SerpAPI key
+	SearchProvider          string        // "tavily" | "serpapi" | "duckduckgo" (default, free)
+	MaxReflectionsPerDomain int           // default 0 (use per-domain defaults); if > 0, use same for all domains
 }
 
 // DefaultConfig returns sensible defaults that work without any API key.
 func DefaultConfig() Config {
 	return Config{
-		MaxRounds:       3,
-		QueriesPerRound: 4,
-		Timeout:         90 * time.Second,
-		SearchProvider:  "duckduckgo",
+		MaxRounds:               3,
+		QueriesPerRound:         4,
+		Timeout:                 90 * time.Second,
+		SearchProvider:          "duckduckgo",
+		MaxReflectionsPerDomain: 0, // use per-domain defaults
 	}
+}
+
+// domainReflectionDepth defines how many reflection cycles each domain gets by default.
+// Regulation and Geopolitics are complex; Behavior and Culture are simpler.
+var domainReflectionDepth = map[string]int{
+	"regulation":  3,
+	"geopolitics": 3,
+	"technology":  2,
+	"finance":     2,
+	"market":      2,
+	"behavior":    1,
+	"culture":     1,
 }
 
 // Agent is the deep search research agent.
@@ -103,6 +119,9 @@ func New(llm LLMCaller, cfg Config) *Agent {
 	}
 	if cfg.SearchProvider == "" {
 		cfg.SearchProvider = "duckduckgo"
+	}
+	if cfg.MaxReflectionsPerDomain < 0 {
+		cfg.MaxReflectionsPerDomain = 0
 	}
 	return &Agent{
 		llm: llm,
@@ -677,4 +696,189 @@ func deduplicate(items []string) []string {
 		}
 	}
 	return result
+}
+
+
+// SynthesizeDomainContext extracts domain-specific context from a ContextReport
+// and returns a map of domain -> (context_text, affected_rules, confidence).
+// This is used to inject real-world evidence into the FRACTURE simulation.
+func (a *Agent) SynthesizeDomainContext(report *ContextReport) map[string]struct {
+	ContextText   string
+	AffectedRules []string
+	Confidence    float64
+} {
+	result := make(map[string]struct {
+		ContextText   string
+		AffectedRules []string
+		Confidence    float64
+	})
+
+	// Market domain: key players, threats, opportunities, sentiment
+	if len(report.KeyPlayers) > 0 || len(report.Threats) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText: fmt.Sprintf(
+				"Key Players: %s | Threats: %s | Opportunities: %s | Sentiment: %s",
+				strings.Join(report.KeyPlayers, ", "),
+				strings.Join(report.Threats, ", "),
+				strings.Join(report.Opportunities, ", "),
+				report.MarketSentiment,
+			),
+			AffectedRules: []string{"mkt-001", "mkt-002", "mkt-004", "mkt-005", "mkt-007"},
+			Confidence:    0.75,
+		}
+		result["market"] = ctx
+	}
+
+	// Technology domain: trends
+	if len(report.RecentTrends) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText: fmt.Sprintf("Technology Trends: %s", strings.Join(report.RecentTrends, ", ")),
+			AffectedRules: []string{"tech-001", "tech-003", "tech-006", "tech-007"},
+			Confidence:    0.70,
+		}
+		result["technology"] = ctx
+	}
+
+	// Regulation domain: threats often include regulatory changes
+	if len(report.Threats) > 0 {
+		threatText := strings.Join(report.Threats, ", ")
+		if strings.Contains(strings.ToLower(threatText), "regulat") || strings.Contains(strings.ToLower(threatText), "compliance") {
+			ctx := struct {
+				ContextText   string
+				AffectedRules []string
+				Confidence    float64
+			}{
+				ContextText:   fmt.Sprintf("Regulatory Threats: %s", threatText),
+				AffectedRules: []string{"reg-001", "reg-003", "reg-005", "reg-006"},
+				Confidence:    0.65,
+			}
+			result["regulation"] = ctx
+		}
+	}
+
+	// Behavior domain: market sentiment and opportunities
+	if report.MarketSentiment != "" {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Market Sentiment: %s", report.MarketSentiment),
+			AffectedRules: []string{"beh-003", "beh-005", "beh-007"},
+			Confidence:    0.60,
+		}
+		result["behavior"] = ctx
+	}
+
+	// Culture domain: recent trends and sentiment
+	if len(report.RecentTrends) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Cultural Trends: %s | Sentiment: %s", strings.Join(report.RecentTrends, ", "), report.MarketSentiment),
+			AffectedRules: []string{"cul-002", "cul-004", "cul-005", "cul-006"},
+			Confidence:    0.65,
+		}
+		result["culture"] = ctx
+	}
+
+	// Finance domain: threats and opportunities
+	if len(report.Opportunities) > 0 || len(report.Threats) > 0 {
+		ctx := struct {
+			ContextText   string
+			AffectedRules []string
+			Confidence    float64
+		}{
+			ContextText:   fmt.Sprintf("Financial Opportunities: %s | Threats: %s", strings.Join(report.Opportunities, ", "), strings.Join(report.Threats, ", ")),
+			AffectedRules: []string{"fin-001", "fin-003", "fin-005", "fin-006"},
+			Confidence:    0.70,
+		}
+		result["finance"] = ctx
+	}
+
+	return result
+}
+
+
+// buildDomainQueries generates initial search queries for a specific domain.
+func (a *Agent) buildDomainQueries(domain, question, company, sector string) []string {
+	domainKeywords := map[string][]string{
+		"market":      {"market trends", "competitive landscape", "market disruption", "market share"},
+		"technology":  {"technology trends", "innovation", "digital transformation", "tech adoption"},
+		"regulation":  {"regulatory changes", "compliance", "government policy", "legal framework"},
+		"behavior":    {"consumer behavior", "user adoption", "market adoption", "behavioral trends"},
+		"culture":     {"cultural trends", "social trends", "cultural shift", "societal changes"},
+		"geopolitics": {"geopolitical risks", "trade policy", "international relations", "political risks"},
+		"finance":     {"financial markets", "funding trends", "investment", "financial outlook"},
+	}
+
+	keywords, ok := domainKeywords[domain]
+	if !ok {
+		keywords = []string{"market trends", "industry analysis"}
+	}
+
+	var queries []string
+	for _, kw := range keywords {
+		queries = append(queries, fmt.Sprintf("%s %s %s %d", company, kw, sector, time.Now().Year()))
+	}
+	return queries
+}
+
+// buildComplementaryQueries generates follow-up queries based on identified gaps.
+func (a *Agent) buildComplementaryQueries(domain string, gaps []string) []string {
+	var queries []string
+	for _, gap := range gaps {
+		queries = append(queries, fmt.Sprintf("%s %s latest news", gap, domain))
+	}
+	return queries
+}
+
+// synthesizeDomainFindings uses the LLM to synthesize findings for a domain.
+func (a *Agent) synthesizeDomainFindings(ctx context.Context, domain, question string, queries []string) (string, int, error) {
+	prompt := fmt.Sprintf(
+		"Synthesize the key findings for the %s domain in response to: %s\nSearch queries used: %s\nProvide a concise summary of the most important insights.",
+		domain, question, strings.Join(queries, "; "),
+	)
+
+	findings, tokens, err := a.llm.Call(ctx, "You are a domain expert synthesizing research findings.", prompt, 500)
+	return findings, tokens, err
+}
+
+// identifyGaps uses the LLM to identify knowledge gaps in the current findings.
+func (a *Agent) identifyGaps(ctx context.Context, domain, question string, findings []string) ([]string, int, error) {
+	prompt := fmt.Sprintf(
+		"Given the question '%s' and these findings about the %s domain:\n%s\n\nIdentify 2-3 critical knowledge gaps that should be researched further. Return as a JSON array of strings.",
+		question, domain, strings.Join(findings, "\n"),
+	)
+
+	response, tokens, err := a.llm.Call(ctx, "You are a research analyst identifying gaps.", prompt, 300)
+	if err != nil {
+		return nil, tokens, err
+	}
+
+	gaps, err := extractStringArray(response)
+	if err != nil {
+		log.Printf("[DeepSearch] failed to parse gaps: %v", err)
+		return nil, tokens, nil
+	}
+
+	return gaps, tokens, nil
+}
+
+
+// hashQuestion generates a stable hash for a research question.
+// Used as key for resumable state in the database.
+func hashQuestion(question, company, sector string) string {
+	h := sha256.Sum256([]byte(question + "|" + company + "|" + sector))
+	return hex.EncodeToString(h[:8]) // First 16 hex chars (8 bytes)
 }
