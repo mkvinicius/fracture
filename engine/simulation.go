@@ -253,6 +253,62 @@ func (s *Simulation) processFractureProposal(
 	return event
 }
 
+// ─── Calibration ─────────────────────────────────────────────────────────────
+
+// AgentCalibration holds a calibrated accuracy weight for a single agent or archetype.
+// Sourced from memory.ArchetypeCalibration and converted at the handler layer.
+type AgentCalibration struct {
+	AgentID        string
+	AccuracyWeight float64 // 0.3 (less trusted) to 2.0 (highly trusted); 1.0 = neutral
+}
+
+// calibratedAgent wraps an Agent and overrides its PowerWeight based on calibration.
+type calibratedAgent struct {
+	Agent
+	calibratedPersonality Personality
+}
+
+func (c *calibratedAgent) Personality() Personality { return c.calibratedPersonality }
+
+// ApplyCalibration returns a new agent slice where each agent's PowerWeight has been
+// scaled by its AccuracyWeight from calibration. Agents not present in calibrations
+// are returned unchanged. PowerWeight is clamped to [0.1, 10.0].
+func ApplyCalibration(agents []Agent, calibrations []AgentCalibration) []Agent {
+	if len(calibrations) == 0 {
+		return agents
+	}
+
+	// Build lookup: agentID → accuracy weight
+	weightByID := make(map[string]float64, len(calibrations))
+	for _, cal := range calibrations {
+		weightByID[cal.AgentID] = cal.AccuracyWeight
+	}
+
+	result := make([]Agent, len(agents))
+	for i, a := range agents {
+		w, ok := weightByID[a.ID()]
+		if !ok || w == 1.0 {
+			result[i] = a
+			continue
+		}
+		p := a.Personality()
+		base := p.PowerWeight
+		if base == 0 {
+			base = 0.5
+		}
+		adjusted := base * w
+		if adjusted < 0.1 {
+			adjusted = 0.1
+		}
+		if adjusted > 10.0 {
+			adjusted = 10.0
+		}
+		p.PowerWeight = adjusted
+		result[i] = &calibratedAgent{Agent: a, calibratedPersonality: p}
+	}
+	return result
+}
+
 // calculateFractureConfidence produces a 0.0-1.0 confidence score for a fracture event.
 // Formula:
 //   - Base = weighted yes-share (or no-share if rejected)

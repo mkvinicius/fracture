@@ -2,25 +2,24 @@ package memory
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"math"
 )
 
 // FeedbackRecord is a real-world outcome recorded by the user.
 type FeedbackRecord struct {
-	SimulationID string  `json:"simulation_id"`
-	Predicted    string  `json:"predicted"`
-	Actual       string  `json:"actual"`
-	DeltaScore   float64 `json:"delta_score"` // -1.0 (completely wrong) to 1.0 (exactly right)
-	Notes        string  `json:"notes"`
+	SimulationID     string  `json:"simulation_id"`
+	PredictedFracture string `json:"predicted_fracture"`
+	ActualOutcome    string  `json:"actual_outcome"`
+	DeltaScore       float64 `json:"delta_score"` // -1.0 (completely wrong) to 1.0 (exactly right)
+	Notes            string  `json:"notes"`
 }
 
 // ArchetypeCalibration holds the calibration state for a single archetype.
 type ArchetypeCalibration struct {
-	ArchetypeID    string  `json:"archetype_id"`
-	MemoryWeight   float64 `json:"memory_weight"`  // multiplier: 0.5 (less trusted) to 2.0 (highly trusted)
-	FeedbackCount  int     `json:"feedback_count"`
+	ArchetypeID     string  `json:"archetype_id"`
+	AccuracyWeight  float64 `json:"accuracy_weight"`  // multiplier: 0.3 (less trusted) to 2.0 (highly trusted)
+	FeedbackCount   int     `json:"feedback_count"`
 	AverageAccuracy float64 `json:"average_accuracy"` // rolling average of delta scores
 }
 
@@ -34,92 +33,108 @@ func NewCalibrator(db *sql.DB) *Calibrator {
 	return &Calibrator{db: db}
 }
 
-// RecordFeedback stores a feedback record and updates archetype calibration.
+// RecordFeedback updates archetype calibration based on real-world outcome.
+// Feedback persistence (INSERT into feedback table) is handled by the caller (handler).
+// This method only updates accuracy_weight in archetype_calibration.
 func (c *Calibrator) RecordFeedback(companyID string, feedback FeedbackRecord) error {
-	// Save feedback record
-	_, err := c.db.Exec(`
-		INSERT INTO feedback (id, simulation_id, company_id, predicted, actual, delta_score, notes, recorded_at)
-		VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, unixepoch())
-	`, feedback.SimulationID, companyID, feedback.Predicted, feedback.Actual, feedback.DeltaScore, feedback.Notes)
-	if err != nil {
-		return err
-	}
-
-	// Recalibrate archetypes that participated in this simulation
 	return c.recalibrateForSimulation(feedback.SimulationID, feedback.DeltaScore)
 }
 
-// recalibrateForSimulation adjusts the memory_weight of archetypes that participated
-// in the simulation based on the real-world feedback delta.
+// recalibrateForSimulation adjusts the accuracy_weight of archetypes that participated
+// in the simulation, using an exponential moving average weighted by sample_count.
 func (c *Calibrator) recalibrateForSimulation(simulationID string, deltaScore float64) error {
+	// Get the domain (department) for this simulation from simulation_jobs
+	var domain string
+	if err := c.db.QueryRow(
+		`SELECT department FROM simulation_jobs WHERE id = ?`, simulationID,
+	).Scan(&domain); err != nil {
+		// Fall back to a generic domain if no job row found
+		domain = "market"
+	}
+
 	// Get distinct agents that participated in this simulation
-	rows, err := c.db.Query(`
-		SELECT DISTINCT agent_id, agent_type FROM simulation_rounds WHERE simulation_id = ?
-	`, simulationID)
+	rows, err := c.db.Query(
+		`SELECT DISTINCT agent_id FROM simulation_rounds WHERE simulation_id = ?`, simulationID,
+	)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
-	var agents []struct {
-		id        string
-		agentType string
-	}
+	var agentIDs []string
 	for rows.Next() {
-		var id, agentType string
-		if err := rows.Scan(&id, &agentType); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			continue
 		}
-		agents = append(agents, struct {
-			id        string
-			agentType string
-		}{id, agentType})
+		agentIDs = append(agentIDs, id)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 
-	// For each agent, update their memory_weight in the archetypes table
-	for _, agent := range agents {
-		// Get current calibration; skip built-in agents not stored in archetypes table
+	// Normalize delta_score from [-1, 1] to [0, 1] for EMA computation
+	// -1.0 → 0.0 (wrong), 0.0 → 0.5 (neutral), 1.0 → 1.0 (perfect)
+	adjustment := (deltaScore + 1.0) / 2.0
+
+	for _, agentID := range agentIDs {
 		var currentWeight float64
-		if err := c.db.QueryRow(`
-			SELECT memory_weight FROM archetypes WHERE id = ?
-		`, agent.id).Scan(&currentWeight); err != nil {
-			continue
+		var sampleCount int
+
+		err := c.db.QueryRow(`
+			SELECT accuracy_weight, sample_count
+			FROM archetype_calibration
+			WHERE archetype_id = ? AND domain = ?
+		`, agentID, domain).Scan(&currentWeight, &sampleCount)
+
+		if err == sql.ErrNoRows {
+			// First calibration for this agent+domain — start at neutral 1.0
+			currentWeight = 1.0
+			sampleCount = 0
+		} else if err != nil {
+			continue // skip on unexpected error
 		}
 
-		// Exponential moving average: new_weight = old_weight * 0.9 + delta_adjustment * 0.1
-		// delta_score: -1.0 = completely wrong, 1.0 = perfect
-		// adjustment: positive delta → increase weight, negative → decrease
-		adjustment := (deltaScore + 1.0) / 2.0 // normalize to 0.0-1.0
-		newWeight := currentWeight*0.9 + adjustment*0.1
+		// Exponential moving average with decaying alpha:
+		// alpha = 1 / (sample_count + 1) — stabilises as evidence accumulates
+		alpha := 1.0 / (float64(sampleCount) + 1.0)
+		newWeight := currentWeight*(1.0-alpha) + adjustment*alpha
 
-		// Clamp between 0.3 and 2.0
-		newWeight = math.Max(0.3, math.Min(2.0, newWeight))
+		// Re-scale: neutral 0.5 → 1.0, perfect 1.0 → 2.0, worst 0.0 → 0.3
+		calibrated := 0.3 + newWeight*1.7
+		calibrated = math.Max(0.3, math.Min(2.0, calibrated))
 
-		if _, err := c.db.Exec(`
-			UPDATE archetypes SET memory_weight = ?, updated_at = unixepoch() WHERE id = ?
-		`, newWeight, agent.id); err != nil {
-			// Log but don't abort — calibration errors are non-fatal
-			_ = err // caller's logging responsibility; error is inherently non-fatal here
+		_, err = c.db.Exec(`
+			INSERT INTO archetype_calibration (archetype_id, domain, accuracy_weight, sample_count, updated_at)
+			VALUES (?, ?, ?, 1, unixepoch())
+			ON CONFLICT(archetype_id, domain) DO UPDATE SET
+				accuracy_weight = ?,
+				sample_count    = sample_count + 1,
+				updated_at      = unixepoch()
+		`, agentID, domain, calibrated, calibrated)
+		if err != nil {
+			// Non-fatal: log is the caller's responsibility
+			continue
 		}
 	}
 
 	return nil
 }
 
-// GetCalibrationReport returns the calibration state for all archetypes of a company.
+// GetCalibrationReport returns the calibration state for archetypes that have
+// participated in simulations for the given company.
 func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibration, error) {
 	rows, err := c.db.Query(`
-		SELECT a.id, a.memory_weight,
-			COUNT(DISTINCT f.id) as feedback_count,
-			COALESCE(AVG(f.delta_score), 0) as avg_accuracy
-		FROM archetypes a
-		LEFT JOIN simulation_rounds sr ON a.id = sr.agent_id
-		LEFT JOIN feedback f ON sr.simulation_id = f.simulation_id
-		WHERE a.company_id = ? OR a.company_id IS NULL
-		GROUP BY a.id
+		SELECT
+			ac.archetype_id,
+			AVG(ac.accuracy_weight)  AS avg_weight,
+			SUM(ac.sample_count)     AS total_samples,
+			AVG(ac.accuracy_weight)  AS avg_accuracy
+		FROM archetype_calibration ac
+		INNER JOIN simulation_rounds sr ON sr.agent_id   = ac.archetype_id
+		INNER JOIN simulation_jobs   sj ON sj.id         = sr.simulation_id
+		WHERE sj.company = ?
+		GROUP BY ac.archetype_id
 	`, companyID)
 	if err != nil {
 		return nil, err
@@ -129,7 +144,12 @@ func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibrat
 	var calibrations []ArchetypeCalibration
 	for rows.Next() {
 		var cal ArchetypeCalibration
-		if err := rows.Scan(&cal.ArchetypeID, &cal.MemoryWeight, &cal.FeedbackCount, &cal.AverageAccuracy); err != nil {
+		if err := rows.Scan(
+			&cal.ArchetypeID,
+			&cal.AccuracyWeight,
+			&cal.FeedbackCount,
+			&cal.AverageAccuracy,
+		); err != nil {
 			continue
 		}
 		calibrations = append(calibrations, cal)
@@ -139,6 +159,8 @@ func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibrat
 	}
 	return calibrations, nil
 }
+
+// ─── Causality graph ──────────────────────────────────────────────────────────
 
 // CausalityGraph records a causal relationship between a decision and an outcome.
 type CausalityGraph struct {
@@ -152,21 +174,18 @@ func NewCausalityGraph(db *sql.DB) *CausalityGraph {
 
 // RecordCausality records that a decision led to an outcome.
 func (cg *CausalityGraph) RecordCausality(companyID, decisionDesc, outcomeDesc string) error {
-	// Upsert decision node
 	decisionID := hashString(companyID + "|decision|" + decisionDesc)
 	cg.db.Exec(`
 		INSERT OR IGNORE INTO causality_nodes (id, company_id, description, node_type, created_at)
 		VALUES (?, ?, ?, 'decision', unixepoch())
 	`, decisionID, companyID, decisionDesc)
 
-	// Upsert outcome node
 	outcomeID := hashString(companyID + "|outcome|" + outcomeDesc)
 	cg.db.Exec(`
 		INSERT OR IGNORE INTO causality_nodes (id, company_id, description, node_type, created_at)
 		VALUES (?, ?, ?, 'outcome', unixepoch())
 	`, outcomeID, companyID, outcomeDesc)
 
-	// Upsert edge (increment evidence count)
 	_, err := cg.db.Exec(`
 		INSERT INTO causality_edges (from_node, to_node, strength, evidence)
 		VALUES (?, ?, 0.5, 1)
@@ -175,6 +194,14 @@ func (cg *CausalityGraph) RecordCausality(companyID, decisionDesc, outcomeDesc s
 			strength = MIN(1.0, strength + 0.05)
 	`, decisionID, outcomeID)
 	return err
+}
+
+// CausalPath represents a learned decision → outcome relationship.
+type CausalPath struct {
+	Decision string  `json:"decision"`
+	Outcome  string  `json:"outcome"`
+	Strength float64 `json:"strength"` // 0.0-1.0
+	Evidence int     `json:"evidence"` // number of times observed
 }
 
 // GetCausalChain returns the most evidenced causal paths from a given decision.
@@ -206,13 +233,7 @@ func (cg *CausalityGraph) GetCausalChain(companyID, decisionDesc string, depth i
 	return paths, nil
 }
 
-// CausalPath represents a learned decision → outcome relationship.
-type CausalPath struct {
-	Decision string  `json:"decision"`
-	Outcome  string  `json:"outcome"`
-	Strength float64 `json:"strength"` // 0.0-1.0
-	Evidence int     `json:"evidence"` // number of times observed
-}
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 // hashString produces a deterministic short ID from a string.
 func hashString(s string) string {
@@ -220,6 +241,5 @@ func hashString(s string) string {
 	for _, c := range s {
 		h = h*31 + int(c)
 	}
-	b, _ := json.Marshal(h)
-	return string(b)
+	return fmt.Sprintf("%d", h)
 }

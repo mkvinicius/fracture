@@ -109,3 +109,17 @@ CREATE TABLE IF NOT EXISTS domain_contexts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_domain_contexts_sim ON domain_contexts(simulation_id);
+
+-- ─── RAG DOCUMENTS (local TF-IDF semantic search) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS rag_documents (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL,
+    doc_type    TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    metadata    TEXT NOT NULL DEFAULT '{}',
+    tfidf       BLOB,
+    created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_company ON rag_documents(company_id, doc_type);

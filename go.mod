@@ -1,6 +1,8 @@
 module github.com/fracture/fracture
 
-go 1.25.0
+go 1.24.0
+
+require golang.org/x/net v0.52.0
 
 require (
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
@@ -18,6 +20,9 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.37 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 )
+
+replace golang.org/x/net => golang.org/x/net v0.38.0
+
+replace golang.org/x/sys => golang.org/x/sys v0.26.0

@@ -30,6 +30,8 @@ type Handler struct {
 	sanitizer   *security.Sanitizer
 	auditLogger *security.AuditLogger
 	tel         *telemetry.Client
+	calibrator  *memory.Calibrator
+	ragStore    *memory.RAGStore
 
 	// simulation state: in-memory mirror of simulation_jobs table.
 	// All mutations are written through to the DB for resilience across restarts.
@@ -75,6 +77,8 @@ func NewHandler(
 		sanitizer:   sanitizer,
 		auditLogger: auditLogger,
 		tel:         tel,
+		calibrator:  memory.NewCalibrator(database.DB),
+		ragStore:    memory.NewRAGStore(database.DB),
 		simJobs:     make(map[string]*simJob),
 	}
 
@@ -563,7 +567,20 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		})
 	}
 
-	// Step 4: Run the full FRACTURE simulation with enriched context
+	// Step 4: Enrich with past simulation history (if company known)
+	if job.Company != "" {
+		historyCtx := dsAgent.EnrichWithHistory(researchCtx, h.ragStore, job.Company, job.Question)
+		if historyCtx != "" {
+			if enrichedContext != "" {
+				enrichedContext = enrichedContext + "\n\n" + historyCtx
+			} else {
+				enrichedContext = historyCtx
+			}
+			log.Printf("[FRACTURE] History context injected for sim %s (company: %s)", job.ID, job.Company)
+		}
+	}
+
+	// Step 5: Run the full FRACTURE simulation with enriched context
 	h.runSimulation(job, enrichedContext, domainResults)
 }
 
@@ -611,6 +628,21 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		archetypes.BuiltinConformists(conformistLLM),
 		archetypes.BuiltinDisruptors(disruptorLLM)...,
 	)
+
+	// Apply archetype calibration: agents with higher accuracy_weight get more influence
+	if job.Company != "" {
+		if cals, err := h.calibrator.GetCalibrationReport(job.Company); err == nil && len(cals) > 0 {
+			engineCals := make([]engine.AgentCalibration, len(cals))
+			for i, c := range cals {
+				engineCals[i] = engine.AgentCalibration{
+					AgentID:        c.ArchetypeID,
+					AccuracyWeight: c.AccuracyWeight,
+				}
+			}
+			agents = engine.ApplyCalibration(agents, engineCals)
+			log.Printf("[FRACTURE] Applied calibration for %d archetypes (sim %s)", len(cals), job.ID)
+		}
+	}
 
 	// Build memory store
 	memStore := memory.NewStore(h.db.DB)
@@ -716,6 +748,16 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		"tokens":      result.TotalTokens,
 		"fractures":   len(result.FractureEvents),
 	})
+
+	// Index simulation artifacts in the RAG store for future simulations
+	if job.Company != "" && report != nil && reportErr == nil {
+		signals := domainResultsToSignals(domainResults)
+		if err := h.ragStore.IndexSimulation(job.Company, *report, signals); err != nil {
+			log.Printf("[FRACTURE] RAG index error for sim %s: %v", job.ID, err)
+		} else {
+			log.Printf("[FRACTURE] RAG indexed sim %s for company %q", job.ID, job.Company)
+		}
+	}
 }
 
 // persistRound saves each agent action and fracture votes from a RoundResult to the DB.
@@ -934,19 +976,81 @@ func (h *Handler) getResults(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) submitFeedback(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Outcome string `json:"outcome"` // accurate | inaccurate | partial
-		Notes   string `json:"notes"`
+		Outcome           string  `json:"outcome"`            // accurate | inaccurate | partial
+		PredictedFracture string  `json:"predicted_fracture"` // what the simulation predicted
+		ActualOutcome     string  `json:"actual_outcome"`     // what actually happened
+		DeltaScore        float64 `json:"delta_score"`        // -1.0 to 1.0
+		Notes             string  `json:"notes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+
+	// a) Persist feedback to DB
 	if err := h.db.SaveFeedback(id, body.Outcome, body.Notes); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save feedback")
 		return
 	}
-	_ = h.auditLogger.Log("feedback.submitted", id, map[string]string{"outcome": body.Outcome})
+
+	// b) Recalibrate archetypes that participated in this simulation
+	if body.DeltaScore != 0 {
+		companyID := h.companyID()
+		feedback := memory.FeedbackRecord{
+			SimulationID:      id,
+			PredictedFracture: body.PredictedFracture,
+			ActualOutcome:     body.ActualOutcome,
+			DeltaScore:        body.DeltaScore,
+			Notes:             body.Notes,
+		}
+		if err := h.calibrator.RecordFeedback(companyID, feedback); err != nil {
+			log.Printf("[FRACTURE] calibration error for sim %s: %v", id, err)
+		}
+	}
+
+	// c) Re-index simulation in RAG with feedback metadata (best-effort)
+	if body.PredictedFracture != "" || body.ActualOutcome != "" {
+		companyID := h.companyID()
+		if companyID != "" {
+			meta, _ := json.Marshal(map[string]interface{}{
+				"simulation_id":      id,
+				"feedback_outcome":   body.Outcome,
+				"predicted_fracture": body.PredictedFracture,
+				"actual_outcome":     body.ActualOutcome,
+				"delta_score":        body.DeltaScore,
+			})
+			content := fmt.Sprintf(
+				"Feedback para simulação %s: previsto=%q, real=%q, delta=%.2f",
+				id, body.PredictedFracture, body.ActualOutcome, body.DeltaScore,
+			)
+			_ = h.ragStore.Index(companyID, memory.RAGDocument{
+				ID:       "feedback-" + id,
+				Type:     memory.DocCompanyContext,
+				Content:  content,
+				Metadata: string(meta),
+			})
+		}
+	}
+
+	_ = h.auditLogger.Log("feedback.submitted", id, map[string]interface{}{
+		"outcome":     body.Outcome,
+		"delta_score": body.DeltaScore,
+	})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// companyID retrieves the current company name from config (used as company identifier).
+func (h *Handler) companyID() string {
+	companyJSON, _ := h.db.GetConfig("company_json")
+	if companyJSON == "" {
+		return ""
+	}
+	var cp map[string]interface{}
+	if json.Unmarshal([]byte(companyJSON), &cp) != nil {
+		return ""
+	}
+	name, _ := cp["name"].(string)
+	return name
 }
 
 // ─── Quick Pulse ─────────────────────────────────────────────────────────────
@@ -1434,6 +1538,24 @@ func (h *Handler) buildLLMRouter() (*llm.Router, error) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// domainResultsToSignals converts a DomainResearchResult map to a []memory.DomainSignal
+// slice, breaking the deepsearch→memory circular import by doing the conversion here.
+func domainResultsToSignals(results map[engine.RuleDomain]*deepsearch.DomainResearchResult) []memory.DomainSignal {
+	signals := make([]memory.DomainSignal, 0, len(results))
+	for domain, res := range results {
+		if res == nil {
+			continue
+		}
+		signals = append(signals, memory.DomainSignal{
+			Domain:    string(domain),
+			Summary:   res.Summary,
+			Signals:   res.KeySignals,
+			Sentiment: res.SentimentScore,
+		})
+	}
+	return signals
+}
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
