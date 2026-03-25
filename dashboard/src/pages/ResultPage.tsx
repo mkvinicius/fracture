@@ -91,12 +91,16 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
               {report.total_tokens.toLocaleString()} tokens · {(report.duration_ms / 1000).toFixed(1)}s · {report.watermark.version}
             </div>
           </div>
-          <button
-            onClick={() => onNavigate('feedback', simId)}
-            style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Give Feedback
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+            <button onClick={() => downloadFile(`/api/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
+            <button onClick={() => downloadFile(`/api/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
+            <button
+              onClick={() => onNavigate('feedback', simId)}
+              style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Give Feedback
+            </button>
+          </div>
         </div>
       </div>
 
@@ -328,7 +332,24 @@ function probColor(p: number): string {
   return 'var(--color-success)'
 }
 
+async function downloadFile(url: string, filename: string) {
+  const res = await fetch(url)
+  if (!res.ok) return
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 const backBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '13px',
   cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', gap: '4px',
+}
+
+const exportBtnStyle: React.CSSProperties = {
+  padding: '9px 14px', borderRadius: '8px', border: '1px solid var(--color-border)',
+  background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px',
+  fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap',
 }

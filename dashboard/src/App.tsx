@@ -8,10 +8,12 @@ import ArchetypesPage from './pages/ArchetypesPage'
 import SettingsPage from './pages/SettingsPage'
 import ResultPage from './pages/ResultPage'
 import FeedbackPage from './pages/FeedbackPage'
+import ComparisonPage from './pages/ComparisonPage'
+import ConvergencePage from './pages/ConvergencePage'
 import OnboardingWizard from './components/OnboardingWizard'
 import { useOnboarding } from './hooks/useOnboarding'
 
-export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback'
+export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence'
 
 type UpdateInfo = {
   has_update: boolean
@@ -62,12 +64,14 @@ function UpdateBanner({ info, onDismiss }: { info: UpdateInfo; onDismiss: () => 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home')
   const [selectedSimId, setSelectedSimId] = useState<string>('')
+  const [selectedSimIds, setSelectedSimIds] = useState<string[]>([])
   const { isOnboarded, loading } = useOnboarding()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
 
-  const navigate = (p: Page, simId?: string) => {
+  const navigate = (p: Page, simId?: string, simIds?: string[]) => {
     if (simId !== undefined) setSelectedSimId(simId)
+    if (simIds !== undefined) setSelectedSimIds(simIds)
     setCurrentPage(p)
   }
 
@@ -113,6 +117,8 @@ function App() {
       case 'settings': return <SettingsPage />
       case 'result': return <ResultPage simId={selectedSimId} onNavigate={navigate} />
       case 'feedback': return <FeedbackPage simId={selectedSimId} onNavigate={navigate} />
+      case 'comparison': return <ComparisonPage simIds={selectedSimIds} onNavigate={navigate} />
+      case 'convergence': return <ConvergencePage simId={selectedSimId} onNavigate={navigate} />
       default: return <HomePage onNavigate={navigate} />
     }
   }

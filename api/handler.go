@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -167,12 +168,17 @@ func (h *Handler) Routes() http.Handler {
 	// Simulations — full implementation
 	r.Post("/simulations", h.createSimulation)
 	r.Get("/simulations", h.listSimulations)
+	r.Get("/simulations/compare", h.compareSimulations) // must be before {id}
 	r.Get("/simulations/{id}", h.getSimulation)
 	r.Get("/simulations/{id}/stream", h.streamSimulation) // SSE
 	r.Delete("/simulations/{id}", h.deleteSimulation)
 
-	// Results & feedback
+	// Results, export & feedback
 	r.Get("/simulations/{id}/results", h.getResults)
+	r.Get("/simulations/{id}/report", h.getReport)
+	r.Get("/simulations/{id}/export/markdown", h.exportMarkdown)
+	r.Get("/simulations/{id}/export/json", h.exportJSON)
+	r.Get("/simulations/{id}/events", h.getSimulationEvents)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
 
 	// Quick pulse (fast tension check, no full simulation)
@@ -1555,6 +1561,110 @@ func domainResultsToSignals(results map[engine.RuleDomain]*deepsearch.DomainRese
 		})
 	}
 	return signals
+}
+
+// ─── Report / Export / Compare / Events ──────────────────────────────────────
+
+// loadFullReport fetches result_json for a simulation and unmarshals it as FullReport.
+func (h *Handler) loadFullReport(id string) (*engine.FullReport, error) {
+	sim, err := h.db.GetSimulation(id)
+	if err != nil {
+		return nil, fmt.Errorf("simulation not found")
+	}
+	var report engine.FullReport
+	if err := json.Unmarshal([]byte(sim.ResultJSON), &report); err != nil {
+		return nil, fmt.Errorf("failed to parse report")
+	}
+	if report.SimulationID == "" {
+		return nil, fmt.Errorf("report not yet generated for this simulation")
+	}
+	return &report, nil
+}
+
+func (h *Handler) getReport(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (h *Handler) exportMarkdown(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	md := engine.ReportToMarkdown(report)
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="fracture-%s.md"`, id))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(md))
+}
+
+func (h *Handler) exportJSON(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	b, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode report")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="fracture-%s.json"`, id))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
+}
+
+func (h *Handler) compareSimulations(w http.ResponseWriter, r *http.Request) {
+	idsParam := strings.TrimSpace(r.URL.Query().Get("ids"))
+	if idsParam == "" {
+		writeError(w, http.StatusBadRequest, "ids parameter required (comma-separated, 2–5 IDs)")
+		return
+	}
+	parts := strings.Split(idsParam, ",")
+	if len(parts) < 2 || len(parts) > 5 {
+		writeError(w, http.StatusBadRequest, "provide between 2 and 5 simulation IDs")
+		return
+	}
+	reports := make([]*engine.FullReport, 0, len(parts))
+	for _, rawID := range parts {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		report, err := h.loadFullReport(id)
+		if err != nil {
+			writeError(w, http.StatusNotFound, fmt.Sprintf("simulation %q: %s", id, err.Error()))
+			return
+		}
+		reports = append(reports, report)
+	}
+	if len(reports) < 2 {
+		writeError(w, http.StatusBadRequest, "at least 2 valid simulation IDs are required")
+		return
+	}
+	writeJSON(w, http.StatusOK, engine.CompareReports(reports))
+}
+
+func (h *Handler) getSimulationEvents(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tensions, err := h.db.GetRoundTensions(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load events: "+err.Error())
+		return
+	}
+	if tensions == nil {
+		tensions = []db.TensionPoint{}
+	}
+	writeJSON(w, http.StatusOK, tensions)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
