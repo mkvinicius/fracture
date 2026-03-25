@@ -1,0 +1,34 @@
+# ── Build outputs ────────────────────────────────────────────────────────────
+fracture-linux-amd64
+fracture-linux-arm64
+fracture-darwin-amd64
+fracture-darwin-arm64
+fracture-windows-amd64.exe
+fracture-server
+*.exe
+
+# ── GoReleaser dist ──────────────────────────────────────────────────────────
+dist/
+
+# ── Go toolchain ─────────────────────────────────────────────────────────────
+*.test
+*.out
+
+# ── Node / pnpm (dashboard) ──────────────────────────────────────────────────
+dashboard/node_modules/
+dashboard/dist/
+
+# ── Database & secrets ───────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+
+# ── Editor & OS ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

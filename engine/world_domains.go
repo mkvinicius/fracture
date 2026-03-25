@@ -1,6 +1,71 @@
 package engine
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"math"
+)
+
+// stabilityModifier returns the per-domain factor used to reduce rule stability
+// when research confidence indicates that domain rules are under pressure.
+func stabilityModifier(domain RuleDomain) float64 {
+	switch domain {
+	case DomainTechnology:
+		return 0.30
+	case DomainCulture:
+		return 0.35
+	case DomainRegulation:
+		return 0.10
+	case DomainMarket:
+		return 0.20
+	case DomainBehavior:
+		return 0.25
+	case DomainGeopolitics:
+		return 0.20
+	case DomainFinance:
+		return 0.15
+	default:
+		return 0.20
+	}
+}
+
+// DefaultWorldForDomainWithContext builds a domain world enriched with
+// DeepSearch findings. It respects context cancellation, stores research
+// context as Evidence (not as a voting Rule), and applies a confidence-weighted
+// stability reduction to rules identified as affected by the research.
+func DefaultWorldForDomainWithContext(
+	ctx context.Context,
+	domain RuleDomain,
+	question string,
+	extraContext string,
+	affectedRules []string,
+	confidence float64,
+) (*World, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	world := DefaultWorldForDomain(domain, question, "")
+
+	// Remove context-seed rule — context is stored in Evidence instead so it
+	// does not participate in tension voting.
+	delete(world.Rules, "context-seed")
+	delete(world.TensionMap, "context-seed")
+
+	// Store domain context as Evidence (read-only field, not a Rule).
+	world.Evidence = extraContext
+
+	// Apply confidence-weighted stability pressure to the affected rules.
+	mod := stabilityModifier(domain)
+	for _, ruleID := range affectedRules {
+		if r, ok := world.Rules[ruleID]; ok {
+			adjusted := r.Stability * (1.0 - confidence*mod)
+			r.Stability = math.Max(0.05, math.Min(0.95, adjusted))
+		}
+	}
+
+	return world, nil
+}
 
 // DefaultWorldForDomain creates a World pre-populated with domain-specific rules.
 // The question and context are used to inject additional tension seeds.

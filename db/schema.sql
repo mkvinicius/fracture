@@ -93,3 +93,33 @@ CREATE TABLE IF NOT EXISTS archetype_calibration (
     updated_at      INTEGER NOT NULL DEFAULT (unixepoch()),
     PRIMARY KEY (archetype_id, domain)
 );
+
+-- ─── DOMAIN CONTEXTS (per-simulation DeepSearch enrichment per domain) ────────
+
+CREATE TABLE IF NOT EXISTS domain_contexts (
+    simulation_id      TEXT NOT NULL,
+    domain             TEXT NOT NULL,
+    context            TEXT NOT NULL DEFAULT '',
+    signals            TEXT NOT NULL DEFAULT '[]',
+    stability_modifier REAL NOT NULL DEFAULT 0.0,
+    confidence         REAL NOT NULL DEFAULT 0.0,
+    affected_rules     TEXT NOT NULL DEFAULT '[]',
+    cached_at          INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (simulation_id, domain)
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_contexts_sim ON domain_contexts(simulation_id);
+
+-- ─── RAG DOCUMENTS (local TF-IDF semantic search) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS rag_documents (
+    id          TEXT PRIMARY KEY,
+    company_id  TEXT NOT NULL,
+    doc_type    TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    metadata    TEXT NOT NULL DEFAULT '{}',
+    tfidf       BLOB,
+    created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_rag_company ON rag_documents(company_id, doc_type);

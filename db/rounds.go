@@ -215,6 +215,40 @@ func (d *DB) ListReportGens(simulationID string) ([]ReportGenRow, error) {
 	return result, nil
 }
 
+// ─── Tension Timeline ─────────────────────────────────────────────────────────
+
+// TensionPoint holds aggregated tension data for a single round.
+type TensionPoint struct {
+	Round         int     `json:"round"`
+	AvgTension    float64 `json:"avg_tension"`
+	FractureCount int     `json:"fracture_count"`
+}
+
+// GetRoundTensions returns per-round average tension and fracture proposal counts.
+func (d *DB) GetRoundTensions(simulationID string) ([]TensionPoint, error) {
+	rows, err := d.Query(`
+		SELECT round_number, AVG(tension_level), SUM(fracture_proposed)
+		FROM simulation_rounds
+		WHERE simulation_id = ?
+		GROUP BY round_number
+		ORDER BY round_number ASC
+	`, simulationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []TensionPoint
+	for rows.Next() {
+		var p TensionPoint
+		if err := rows.Scan(&p.Round, &p.AvgTension, &p.FractureCount); err != nil {
+			continue
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 func boolToInt(b bool) int {

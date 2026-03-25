@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,8 @@ type Handler struct {
 	sanitizer   *security.Sanitizer
 	auditLogger *security.AuditLogger
 	tel         *telemetry.Client
+	calibrator  *memory.Calibrator
+	ragStore    *memory.RAGStore
 
 	// simulation state: in-memory mirror of simulation_jobs table.
 	// All mutations are written through to the DB for resilience across restarts.
@@ -43,6 +46,7 @@ type simJob struct {
 	Question        string `json:"question"`
 	Department      string `json:"department"`
 	Rounds          int    `json:"rounds"`
+	Mode            string `json:"mode,omitempty"` // standard | premium
 	CreatedAt       int64  `json:"created_at"`
 	DurationMs      int64  `json:"duration_ms,omitempty"`
 	Error           string `json:"error,omitempty"`
@@ -74,6 +78,8 @@ func NewHandler(
 		sanitizer:   sanitizer,
 		auditLogger: auditLogger,
 		tel:         tel,
+		calibrator:  memory.NewCalibrator(database.DB),
+		ragStore:    memory.NewRAGStore(database.DB),
 		simJobs:     make(map[string]*simJob),
 	}
 
@@ -122,6 +128,7 @@ func (h *Handler) persistJob(j *simJob) {
 		Question:        j.Question,
 		Department:      j.Department,
 		Rounds:          j.Rounds,
+		Mode:            j.Mode,
 		Company:         j.Company,
 		Error:           j.Error,
 		ResearchSources: j.ResearchSources,
@@ -161,12 +168,17 @@ func (h *Handler) Routes() http.Handler {
 	// Simulations — full implementation
 	r.Post("/simulations", h.createSimulation)
 	r.Get("/simulations", h.listSimulations)
+	r.Get("/simulations/compare", h.compareSimulations) // must be before {id}
 	r.Get("/simulations/{id}", h.getSimulation)
 	r.Get("/simulations/{id}/stream", h.streamSimulation) // SSE
 	r.Delete("/simulations/{id}", h.deleteSimulation)
 
-	// Results & feedback
+	// Results, export & feedback
 	r.Get("/simulations/{id}/results", h.getResults)
+	r.Get("/simulations/{id}/report", h.getReport)
+	r.Get("/simulations/{id}/export/markdown", h.exportMarkdown)
+	r.Get("/simulations/{id}/export/json", h.exportJSON)
+	r.Get("/simulations/{id}/events", h.getSimulationEvents)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
 
 	// Quick pulse (fast tension check, no full simulation)
@@ -398,6 +410,7 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Question   string   `json:"question"`
 		Department string   `json:"department"`
 		Rounds     int      `json:"rounds"`
+		Mode       string   `json:"mode"`
 		Context    string   `json:"context"`
 		URLs       []string `json:"urls"` // optional: company website + social media URLs
 	}
@@ -409,11 +422,18 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "question is required")
 		return
 	}
-	if body.Rounds <= 0 {
-		body.Rounds = 20
-	}
 	if body.Department == "" {
 		body.Department = "market"
+	}
+	// Determine mode and derive MaxRounds from it; caller-supplied rounds are ignored
+	// when a mode is provided — the mode is the source of truth.
+	simMode := engine.SimulationMode(body.Mode)
+	if simMode != engine.ModeStandard && simMode != engine.ModePremium {
+		simMode = engine.ModeStandard
+	}
+	modeCfg := engine.DefaultConfigForMode(simMode)
+	if body.Rounds <= 0 {
+		body.Rounds = modeCfg.MaxRounds
 	}
 
 	// Sanitize inputs
@@ -442,6 +462,7 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Question:   cleanQ,
 		Department: body.Department,
 		Rounds:     body.Rounds,
+		Mode:       string(simMode),
 		CreatedAt:  time.Now().Unix(),
 	}
 
@@ -523,11 +544,53 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		log.Printf("[FRACTURE] DeepSearch failed for sim %s: %v — continuing without research context", job.ID, dsErr)
 	}
 
-	// Step 3: Run the full FRACTURE simulation with enriched context
-	h.runSimulation(job, enrichedContext)
+	// Step 3: Run domain-specific research for all 7 domains concurrently
+	dr := deepsearch.NewDomainResearcher(dsAgent, h.db.DB)
+	domainResults, drErr := dr.ResearchAllDomains(researchCtx, job.Question, job.Company, job.Department)
+	if drErr != nil {
+		log.Printf("[FRACTURE] DomainResearcher partial error for sim %s: %v", job.ID, drErr)
+	}
+	if domainResults == nil {
+		domainResults = make(map[engine.RuleDomain]*deepsearch.DomainResearchResult)
+	}
+
+	// Persist each domain context to the DB
+	for domain, res := range domainResults {
+		if res == nil {
+			continue
+		}
+		afJSON, _ := json.Marshal(res.AffectedRules)
+		sigJSON, _ := json.Marshal(res.KeySignals)
+		_ = h.db.SaveDomainContext(job.ID, string(domain), db.DomainContextRow{
+			SimulationID:      job.ID,
+			Domain:            string(domain),
+			Context:           res.SynthesizedContext,
+			Signals:           string(sigJSON),
+			StabilityModifier: res.Confidence,
+			Confidence:        res.Confidence,
+			AffectedRules:     string(afJSON),
+			SentimentScore:    res.SentimentScore,
+		})
+	}
+
+	// Step 4: Enrich with past simulation history (if company known)
+	if job.Company != "" {
+		historyCtx := dsAgent.EnrichWithHistory(researchCtx, h.ragStore, job.Company, job.Question)
+		if historyCtx != "" {
+			if enrichedContext != "" {
+				enrichedContext = enrichedContext + "\n\n" + historyCtx
+			} else {
+				enrichedContext = historyCtx
+			}
+			log.Printf("[FRACTURE] History context injected for sim %s (company: %s)", job.ID, job.Company)
+		}
+	}
+
+	// Step 5: Run the full FRACTURE simulation with enriched context
+	h.runSimulation(job, enrichedContext, domainResults)
 }
 
-func (h *Handler) runSimulation(job *simJob, extraContext string) {
+func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults map[engine.RuleDomain]*deepsearch.DomainResearchResult) {
 	h.simMu.Lock()
 	job.Status = "running"
 	h.persistJob(job)
@@ -544,9 +607,25 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		return
 	}
 
-	// Build world from department domain
+	// Build world from department domain, enriched with DeepSearch domain context
 	domain := engine.RuleDomain(job.Department)
-	world := engine.DefaultWorldForDomain(domain, job.Question, extraContext)
+	simCtx := context.Background()
+	var domainContext string
+	var affectedRules []string
+	var confidence float64
+	if res, ok := domainResults[domain]; ok && res != nil {
+		domainContext = res.SynthesizedContext
+		affectedRules = res.AffectedRules
+		confidence = res.Confidence
+	}
+	if extraContext != "" {
+		if domainContext != "" {
+			domainContext = extraContext + "\n\n" + domainContext
+		} else {
+			domainContext = extraContext
+		}
+	}
+	world, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
 
 	// Build agents
 	conformistLLM := router.ForRole(llm.RoleConformist)
@@ -556,29 +635,80 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		archetypes.BuiltinDisruptors(disruptorLLM)...,
 	)
 
+	// Apply archetype calibration: agents with higher accuracy_weight get more influence
+	if job.Company != "" {
+		if cals, err := h.calibrator.GetCalibrationReport(job.Company); err == nil && len(cals) > 0 {
+			engineCals := make([]engine.AgentCalibration, len(cals))
+			for i, c := range cals {
+				engineCals[i] = engine.AgentCalibration{
+					AgentID:        c.ArchetypeID,
+					AccuracyWeight: c.AccuracyWeight,
+				}
+			}
+			agents = engine.ApplyCalibration(agents, engineCals)
+			log.Printf("[FRACTURE] Applied calibration for %d archetypes (sim %s)", len(cals), job.ID)
+		}
+	}
+
 	// Build memory store
 	memStore := memory.NewStore(h.db.DB)
+
+	jobMode := engine.SimulationMode(job.Mode)
+	if jobMode != engine.ModeStandard && jobMode != engine.ModePremium {
+		jobMode = engine.ModeStandard
+	}
+	jobModeCfg := engine.DefaultConfigForMode(jobMode)
 
 	cfg := engine.SimulationConfig{
 		ID:         job.ID,
 		Question:   job.Question,
 		Department: job.Department,
-		MaxRounds:  job.Rounds,
+		MaxRounds:  jobModeCfg.MaxRounds,
 		Agents:     agents,
 		World:      world,
 		Memory:     memStore,
+		CouncilLLM: router.ForRole(llm.RoleSynthesis),
+		Mode:       jobModeCfg,
 	}
 
-	sim := engine.NewSimulation(cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
-	// Drain the round channel and persist each round to the DB
-	for rr := range sim.Run(ctx) {
-		h.persistRound(job.ID, rr)
+	// Run ensemble: for Premium (EnsembleRuns=2) we run twice independently;
+	// for Standard (EnsembleRuns=1) this is a single run with no overhead.
+	var primaryResult engine.SimulationResult
+	ensembleCfg := engine.EnsembleConfig{Runs: jobModeCfg.EnsembleRuns}
+
+	ensembleResult, ensErr := engine.RunEnsemble(ctx, ensembleCfg, func(ctx context.Context, runIdx int) (*engine.RunResult, error) {
+		// Each ensemble run needs a fresh world (independent runs).
+		freshWorld, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
+		runCfg := cfg
+		runCfg.World = freshWorld
+		runCfg.ID = job.ID // keep same ID for round persistence on run 0 only
+
+		sim := engine.NewSimulation(runCfg)
+		for rr := range sim.Run(ctx) {
+			if runIdx == 0 {
+				// Only persist rounds for the primary run
+				h.persistRound(job.ID, rr)
+			}
+		}
+		res := sim.Finalize()
+		if runIdx == 0 {
+			primaryResult = res
+		}
+		return &engine.RunResult{
+			FractureEvents: res.FractureEvents,
+			FinalWorld:     res.FinalWorld,
+			TensionMap:     res.TensionMap,
+			TotalTokens:    res.TotalTokens,
+		}, nil
+	})
+	if ensErr != nil {
+		log.Printf("[FRACTURE] Ensemble error for sim %s: %v — using primary result only", job.ID, ensErr)
 	}
 
-	result := sim.Finalize()
+	result := primaryResult
 
 	// Generate final report — tracked in report_generations table
 	synthesisLLM := router.ForRole(llm.RoleSynthesis)
@@ -592,6 +722,10 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		log.Printf("[FRACTURE] ReportGenerator error for sim %s: %v", job.ID, reportErr)
 		_ = h.db.CompleteReportGen(reportGenID, "error", reportErr.Error(), 0, reportDurationMs)
 	} else if report != nil {
+		// Attach ensemble results to the report (Premium only — Standard has RunCount=1)
+		if ensErr == nil && ensembleResult != nil && ensembleResult.RunCount > 1 {
+			report.EnsembleResult = ensembleResult
+		}
 		_ = h.db.CompleteReportGen(reportGenID, "done", "", report.TotalTokens, reportDurationMs)
 	}
 
@@ -620,6 +754,16 @@ func (h *Handler) runSimulation(job *simJob, extraContext string) {
 		"tokens":      result.TotalTokens,
 		"fractures":   len(result.FractureEvents),
 	})
+
+	// Index simulation artifacts in the RAG store for future simulations
+	if job.Company != "" && report != nil && reportErr == nil {
+		signals := domainResultsToSignals(domainResults)
+		if err := h.ragStore.IndexSimulation(job.Company, *report, signals); err != nil {
+			log.Printf("[FRACTURE] RAG index error for sim %s: %v", job.ID, err)
+		} else {
+			log.Printf("[FRACTURE] RAG indexed sim %s for company %q", job.ID, job.Company)
+		}
+	}
 }
 
 // persistRound saves each agent action and fracture votes from a RoundResult to the DB.
@@ -838,19 +982,81 @@ func (h *Handler) getResults(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) submitFeedback(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Outcome string `json:"outcome"` // accurate | inaccurate | partial
-		Notes   string `json:"notes"`
+		Outcome           string  `json:"outcome"`            // accurate | inaccurate | partial
+		PredictedFracture string  `json:"predicted_fracture"` // what the simulation predicted
+		ActualOutcome     string  `json:"actual_outcome"`     // what actually happened
+		DeltaScore        float64 `json:"delta_score"`        // -1.0 to 1.0
+		Notes             string  `json:"notes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
+
+	// a) Persist feedback to DB
 	if err := h.db.SaveFeedback(id, body.Outcome, body.Notes); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save feedback")
 		return
 	}
-	_ = h.auditLogger.Log("feedback.submitted", id, map[string]string{"outcome": body.Outcome})
+
+	// b) Recalibrate archetypes that participated in this simulation
+	if body.DeltaScore != 0 {
+		companyID := h.companyID()
+		feedback := memory.FeedbackRecord{
+			SimulationID:      id,
+			PredictedFracture: body.PredictedFracture,
+			ActualOutcome:     body.ActualOutcome,
+			DeltaScore:        body.DeltaScore,
+			Notes:             body.Notes,
+		}
+		if err := h.calibrator.RecordFeedback(companyID, feedback); err != nil {
+			log.Printf("[FRACTURE] calibration error for sim %s: %v", id, err)
+		}
+	}
+
+	// c) Re-index simulation in RAG with feedback metadata (best-effort)
+	if body.PredictedFracture != "" || body.ActualOutcome != "" {
+		companyID := h.companyID()
+		if companyID != "" {
+			meta, _ := json.Marshal(map[string]interface{}{
+				"simulation_id":      id,
+				"feedback_outcome":   body.Outcome,
+				"predicted_fracture": body.PredictedFracture,
+				"actual_outcome":     body.ActualOutcome,
+				"delta_score":        body.DeltaScore,
+			})
+			content := fmt.Sprintf(
+				"Feedback para simulação %s: previsto=%q, real=%q, delta=%.2f",
+				id, body.PredictedFracture, body.ActualOutcome, body.DeltaScore,
+			)
+			_ = h.ragStore.Index(companyID, memory.RAGDocument{
+				ID:       "feedback-" + id,
+				Type:     memory.DocCompanyContext,
+				Content:  content,
+				Metadata: string(meta),
+			})
+		}
+	}
+
+	_ = h.auditLogger.Log("feedback.submitted", id, map[string]interface{}{
+		"outcome":     body.Outcome,
+		"delta_score": body.DeltaScore,
+	})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// companyID retrieves the current company name from config (used as company identifier).
+func (h *Handler) companyID() string {
+	companyJSON, _ := h.db.GetConfig("company_json")
+	if companyJSON == "" {
+		return ""
+	}
+	var cp map[string]interface{}
+	if json.Unmarshal([]byte(companyJSON), &cp) != nil {
+		return ""
+	}
+	name, _ := cp["name"].(string)
+	return name
 }
 
 // ─── Quick Pulse ─────────────────────────────────────────────────────────────
@@ -1338,6 +1544,128 @@ func (h *Handler) buildLLMRouter() (*llm.Router, error) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// domainResultsToSignals converts a DomainResearchResult map to a []memory.DomainSignal
+// slice, breaking the deepsearch→memory circular import by doing the conversion here.
+func domainResultsToSignals(results map[engine.RuleDomain]*deepsearch.DomainResearchResult) []memory.DomainSignal {
+	signals := make([]memory.DomainSignal, 0, len(results))
+	for domain, res := range results {
+		if res == nil {
+			continue
+		}
+		signals = append(signals, memory.DomainSignal{
+			Domain:    string(domain),
+			Summary:   res.Summary,
+			Signals:   res.KeySignals,
+			Sentiment: res.SentimentScore,
+		})
+	}
+	return signals
+}
+
+// ─── Report / Export / Compare / Events ──────────────────────────────────────
+
+// loadFullReport fetches result_json for a simulation and unmarshals it as FullReport.
+func (h *Handler) loadFullReport(id string) (*engine.FullReport, error) {
+	sim, err := h.db.GetSimulation(id)
+	if err != nil {
+		return nil, fmt.Errorf("simulation not found")
+	}
+	var report engine.FullReport
+	if err := json.Unmarshal([]byte(sim.ResultJSON), &report); err != nil {
+		return nil, fmt.Errorf("failed to parse report")
+	}
+	if report.SimulationID == "" {
+		return nil, fmt.Errorf("report not yet generated for this simulation")
+	}
+	return &report, nil
+}
+
+func (h *Handler) getReport(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (h *Handler) exportMarkdown(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	md := engine.ReportToMarkdown(report)
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="fracture-%s.md"`, id))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(md))
+}
+
+func (h *Handler) exportJSON(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	b, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to encode report")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="fracture-%s.json"`, id))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(b)
+}
+
+func (h *Handler) compareSimulations(w http.ResponseWriter, r *http.Request) {
+	idsParam := strings.TrimSpace(r.URL.Query().Get("ids"))
+	if idsParam == "" {
+		writeError(w, http.StatusBadRequest, "ids parameter required (comma-separated, 2–5 IDs)")
+		return
+	}
+	parts := strings.Split(idsParam, ",")
+	if len(parts) < 2 || len(parts) > 5 {
+		writeError(w, http.StatusBadRequest, "provide between 2 and 5 simulation IDs")
+		return
+	}
+	reports := make([]*engine.FullReport, 0, len(parts))
+	for _, rawID := range parts {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		report, err := h.loadFullReport(id)
+		if err != nil {
+			writeError(w, http.StatusNotFound, fmt.Sprintf("simulation %q: %s", id, err.Error()))
+			return
+		}
+		reports = append(reports, report)
+	}
+	if len(reports) < 2 {
+		writeError(w, http.StatusBadRequest, "at least 2 valid simulation IDs are required")
+		return
+	}
+	writeJSON(w, http.StatusOK, engine.CompareReports(reports))
+}
+
+func (h *Handler) getSimulationEvents(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tensions, err := h.db.GetRoundTensions(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load events: "+err.Error())
+		return
+	}
+	if tensions == nil {
+		tensions = []db.TensionPoint{}
+	}
+	writeJSON(w, http.StatusOK, tensions)
+}
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
