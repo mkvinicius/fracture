@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -70,9 +71,19 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(120 * time.Second))
 
-	// API routes
+	// API routes — canonical prefix is /api/v1
 	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger, tel)
-	r.Mount("/api", apiHandler.Routes())
+	r.Mount("/api/v1", apiHandler.Routes())
+
+	// Backward compat: redirect /api/<path> → /api/v1/<path> (308 preserves method)
+	r.HandleFunc("/api/*", func(w http.ResponseWriter, req *http.Request) {
+		suffix := strings.TrimPrefix(req.URL.Path, "/api")
+		target := "/api/v1" + suffix
+		if req.URL.RawQuery != "" {
+			target += "?" + req.URL.RawQuery
+		}
+		http.Redirect(w, req, target, http.StatusPermanentRedirect) // 308
+	})
 
 	// Serve dashboard (embedded React build)
 	dashSub, err := fs.Sub(dashboardFS, "dashboard/dist")
