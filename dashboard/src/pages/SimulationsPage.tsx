@@ -3,7 +3,7 @@ import { type Page } from '../App'
 
 interface Sim { id: string; question: string; status: string; department: string; rounds: number; created_at: number; duration_ms?: number }
 
-export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
+export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, simId?: string) => void }) {
   const [sims, setSims] = useState<Sim[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -43,7 +43,25 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page) 
                   · {new Date(sim.created_at * 1000).toLocaleDateString()}
                 </div>
               </div>
-              <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
+                {sim.status === 'complete' && (
+                  <>
+                    <button
+                      onClick={() => onNavigate('result', sim.id)}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}
+                    >
+                      Ver Resultado
+                    </button>
+                    <button
+                      onClick={() => onNavigate('feedback', sim.id)}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}
+                    >
+                      Dar Feedback
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

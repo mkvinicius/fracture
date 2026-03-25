@@ -6,10 +6,12 @@ import NewSimulationPage from './pages/NewSimulationPage'
 import SimulationsPage from './pages/SimulationsPage'
 import ArchetypesPage from './pages/ArchetypesPage'
 import SettingsPage from './pages/SettingsPage'
+import ResultPage from './pages/ResultPage'
+import FeedbackPage from './pages/FeedbackPage'
 import OnboardingWizard from './components/OnboardingWizard'
 import { useOnboarding } from './hooks/useOnboarding'
 
-export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings'
+export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback'
 
 type UpdateInfo = {
   has_update: boolean
@@ -59,9 +61,15 @@ function UpdateBanner({ info, onDismiss }: { info: UpdateInfo; onDismiss: () => 
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home')
+  const [selectedSimId, setSelectedSimId] = useState<string>('')
   const { isOnboarded, loading } = useOnboarding()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
+
+  const navigate = (p: Page, simId?: string) => {
+    if (simId !== undefined) setSelectedSimId(simId)
+    setCurrentPage(p)
+  }
 
   // Check for updates once on startup (non-blocking)
   useEffect(() => {
@@ -98,12 +106,14 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'home': return <HomePage onNavigate={setCurrentPage} />
-      case 'new-simulation': return <NewSimulationPage onNavigate={setCurrentPage} />
-      case 'simulations': return <SimulationsPage onNavigate={setCurrentPage} />
+      case 'home': return <HomePage onNavigate={navigate} />
+      case 'new-simulation': return <NewSimulationPage onNavigate={navigate} />
+      case 'simulations': return <SimulationsPage onNavigate={navigate} />
       case 'archetypes': return <ArchetypesPage />
       case 'settings': return <SettingsPage />
-      default: return <HomePage onNavigate={setCurrentPage} />
+      case 'result': return <ResultPage simId={selectedSimId} onNavigate={navigate} />
+      case 'feedback': return <FeedbackPage simId={selectedSimId} onNavigate={navigate} />
+      default: return <HomePage onNavigate={navigate} />
     }
   }
 
