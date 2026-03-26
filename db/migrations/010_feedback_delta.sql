@@ -1,0 +1,3 @@
+ALTER TABLE feedback ADD COLUMN predicted_fracture TEXT NOT NULL DEFAULT '';
+ALTER TABLE feedback ADD COLUMN actual_outcome TEXT NOT NULL DEFAULT '';
+ALTER TABLE feedback ADD COLUMN delta_score REAL NOT NULL DEFAULT 0.0;

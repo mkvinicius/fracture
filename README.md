@@ -114,6 +114,87 @@ Na tela "New Simulation", adicione até 10 URLs de fontes externas:
 
 ---
 
+## Mentes no Sistema
+
+O FRACTURE não usa personas genéricas. Cada agente é baseado em uma mente real com obra documentada.
+
+### Conformistas (61 mentes)
+
+Pensadores que moldaram como organizações e mercados funcionam — e que defenderão as regras atuais com toda a sua lógica.
+
+| Mente | Contribuição |
+|---|---|
+| Peter Drucker | Management by Objectives, knowledge worker |
+| Clayton Christensen | Teoria da inovação disruptiva, The Innovator's Dilemma |
+| Michael Porter | 5 Forças, vantagem competitiva, cadeia de valor |
+| Philip Kotler | Marketing moderno, os 4 Ps, segmentação |
+| Warren Buffett | Value investing, fosso econômico, margem de segurança |
+| Andy Grove | Only the Paranoid Survive, OKRs, gestão de crises |
+| Jeff Immelt | Transformação industrial, GE Digital, localização global |
+| John Bogle | Index funds, Vanguard, custo zero como vantagem |
+| Vint Cerf | TCP/IP, arquitetura aberta da internet, governança digital |
+| Frederick Taylor | Administração científica, eficiência industrial |
+| Henri Fayol | 14 princípios de gestão, estrutura hierárquica |
+| Max Weber | Burocracia racional, legitimidade organizacional |
+| Mary Parker Follett | Poder coativo vs. coativo, integração de conflitos |
+| Douglas McGregor | Teoria X e Y, motivação intrínseca |
+| Herbert Simon | Racionalidade limitada, satisficing, ciências do artificial |
+| Adam Smith | Divisão do trabalho, mão invisível, riqueza das nações |
+| Joseph Schumpeter | Destruição criativa, empreendedorismo como motor |
+| Ronald Coase | Teoria da firma, custos de transação |
+| Karl Marx | Análise das relações de produção, contradições do capital |
+| Alfred Chandler | Estratégia como estrutura, empresa multidivisional |
+| Abraham Maslow | Hierarquia das necessidades, motivação humana |
+| Theodore Levitt | Marketing myopia, globalização, serviço ao cliente |
+| Everett Rogers | Difusão de inovações, curva S, early adopters |
+| Jay Forrester | Dinâmica de sistemas, feedback loops, Industrial Dynamics |
+| Donella Meadows | Thinking in Systems, pontos de alavancagem |
+| W. Brian Arthur | Increasing returns, path dependence, complexidade econômica |
+| Roger Martin | Design thinking, integrative thinking, Playing to Win |
+| + 34 outros | Líderes setoriais, reguladores, analistas e gestores |
+
+### Disruptores (28 mentes)
+
+Pensadores que questionaram fundamentos e reescreveram regras — e que farão o mesmo na simulação.
+
+| Mente | Contribuição |
+|---|---|
+| Elon Musk | First principles, aceleração tecnológica, verticalização extrema |
+| Steve Jobs | Design como estratégia, ecossistema fechado, narrativa de produto |
+| Jeff Bezos | Flywheel, obsessão com cliente, Day 1 thinking |
+| Reed Hastings | Destruição do próprio modelo, cultura de alta performance |
+| Brian Chesky | Asset-light, plataforma de confiança, hospitalidade como serviço |
+| Travis Kalanick | Regulatory arbitrage, crescimento a qualquer custo |
+| Jack Ma | Ecosistemas digitais em mercados emergentes |
+| Thomas Kuhn | Estrutura das revoluções científicas, paradigm shift |
+| Nassim Taleb | Cisne negro, antifragilidade, via negativa |
+| Adam Smith (anti-monopoly) | Crítica ao poder corporativo e rentismo |
+| Karl Marx (revolutionary) | Contradições sistêmicas, ruptura de modo de produção |
+| Shoshana Zuboff | Capitalismo de vigilância, extração de dados comportamentais |
+| Mariana Mazzucato | Estado empreendedor, missões de inovação, valor público |
+| Kate Raworth | Economia donut, limites planetários, prosperidade sem crescimento |
+| Kai-Fu Lee | IA como força de trabalho, superpotências da IA |
+| Carlota Perez | Revoluções tecnológicas, ciclos longos, janela de oportunidade |
+| + 12 outros | Ativistas, reguladores progressistas, fundadores disruptivos |
+
+### Especialistas por Setor (13+ mentes)
+
+Cada skill ativa um conjunto de especialistas com profundidade setorial real.
+
+| Setor | Mentes |
+|---|---|
+| Healthcare | Hans Rosling (Gapminder), Regina Herzlinger, Don Berwick, Atul Gawande |
+| Fintech | Muhammad Yunus (Grameen Bank), Jack Ma, Caitlin Long, Andreas Antonopoulos |
+| Agro | Gordon Conway (doubly green revolution), Norman Borlaug, Vandana Shiva |
+| Construction | Jane Jacobs (Death and Life of Great American Cities), + outros |
+| Logistics | Yossi Sheffi (MIT resilient enterprise), + outros |
+| Energy | Jeremy Rifkin (Third Industrial Revolution), + outros |
+| Manufacturing | W. Edwards Deming, Vilfredo Pareto, Joseph Juran, Taiichi Ohno |
+| Media | Walter Lippmann (Public Opinion), Marshall McLuhan, + outros |
+| SaaS | Geoffrey Moore, Eric Ries, Jason Lemkin, + outros |
+
+---
+
 ## O Relatório Final — 6 Partes
 
 Após a simulação, você recebe um relatório completo com:

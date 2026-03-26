@@ -1,5 +1,46 @@
 # FRACTURE Changelog
 
+## [v2.9.0] — 2026-03-26
+### Added
+- **Accuracy & Calibration**: página `AccuracyPage` com estatísticas de feedback por empresa
+  - GET /company/accuracy — delta médio, contagem por tipo, calibração por arquétipo
+  - GET /simulations/{id}/accuracy — feedback + confirmações de ruptura de uma simulação
+  - Barras de distribuição (preciso / parcial / impreciso) e tabela de peso por arquétipo
+  - Badges de outcome em `SimulationsPage` carregados assincronamente
+  - Link "Accuracy" na Sidebar
+- **Rupturas Confirmadas**: registro de ruptura real diretamente no relatório
+  - POST /simulations/{id}/confirm-rupture — registra ruptura com rule_id, descrição e notas
+  - GET /simulations/{id}/confirmations — lista confirmações da simulação
+  - GET /company/confirmations — lista todas as confirmações da empresa
+  - Botão "✓ Esta ruptura se confirmou" em cada card de Ruptura do ResultPage
+  - Badge "✓ CONFIRMADA" aparece após confirmação; seção na AccuracyPage
+  - Migration 011_confirmed_ruptures.sql
+- **Feedback delta**: migration 010_feedback_delta.sql adiciona `predicted_fracture`,
+  `actual_outcome` e `delta_score` à tabela `feedback`; `SaveFeedback()` atualizado
+
+## [v2.8.0] — 2026-03-26
+### Added
+- PDF export via HTML otimizado para impressão (print CSS, zero dependências novas)
+  - GET /simulations/{id}/export/pdf — serve HTML auto-contido
+  - `ReportToHTML()` em engine/export.go: todas as seções, XSS-safe, skill badge
+  - Botão "📄 PDF" no ResultPage (abre em nova aba → Ctrl+P → Salvar como PDF)
+  - 5 novos testes em engine/export_test.go
+
+## [v2.5.1] — 2026-03-26
+### Added
+- 73 novas mentes no sistema: 19 conformistas + 9 disruptores + 13 especialistas de skill
+  - Conformistas: Frederick Taylor, Henri Fayol, Max Weber, Mary Parker Follett, Chester Barnard,
+    Douglas McGregor, Herbert Simon, Adam Smith, Joseph Schumpeter, Ronald Coase, Karl Marx,
+    Alfred Chandler, Abraham Maslow, Theodore Levitt, Everett Rogers, Jay Forrester,
+    Donella Meadows, W. Brian Arthur, Roger Martin
+  - Disruptores: Thomas Kuhn, Nassim Taleb, Adam Smith (anti-monopólio), Karl Marx (revolução),
+    Shoshana Zuboff, Mariana Mazzucato, Kate Raworth, Kai-Fu Lee, Carlota Perez
+  - Skills: Hans Rosling (healthcare), Muhammad Yunus (fintech), Gordon Conway (agro),
+    Jane Jacobs (construction), Yossi Sheffi (logistics), Jeremy Rifkin (energy),
+    W. Edwards Deming + Vilfredo Pareto + Joseph Juran (manufacturing),
+    Walter Lippmann (media)
+- Enriquecimento biográfico de Andy Grove, Jeff Immelt, John Bogle, Vint Cerf
+
 ## [v2.5.0] — 2026-03-25
 ### Added
 - Export: baixa relatório em Markdown ou JSON com botões no ResultPage

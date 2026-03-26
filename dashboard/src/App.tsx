@@ -10,10 +10,11 @@ import ResultPage from './pages/ResultPage'
 import FeedbackPage from './pages/FeedbackPage'
 import ComparisonPage from './pages/ComparisonPage'
 import ConvergencePage from './pages/ConvergencePage'
+import AccuracyPage from './pages/AccuracyPage'
 import OnboardingWizard from './components/OnboardingWizard'
 import { useOnboarding } from './hooks/useOnboarding'
 
-export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence'
+export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence' | 'accuracy'
 
 type UpdateInfo = {
   has_update: boolean
@@ -119,6 +120,7 @@ function App() {
       case 'feedback': return <FeedbackPage simId={selectedSimId} onNavigate={navigate} />
       case 'comparison': return <ComparisonPage simIds={selectedSimIds} onNavigate={navigate} />
       case 'convergence': return <ConvergencePage simId={selectedSimId} onNavigate={navigate} />
+      case 'accuracy': return <AccuracyPage onNavigate={navigate} />
       default: return <HomePage onNavigate={navigate} />
     }
   }

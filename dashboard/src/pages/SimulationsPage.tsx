@@ -2,14 +2,38 @@ import { useEffect, useState } from 'react'
 import { type Page } from '../App'
 
 interface Sim { id: string; question: string; status: string; department: string; rounds: number; created_at: number; duration_ms?: number }
+interface FeedbackMap { [simId: string]: { outcome: string; delta_score: number } }
+
+const outcomeColor = (o: string) => o === 'accurate' ? 'var(--color-success)' : o === 'inaccurate' ? 'var(--color-danger)' : 'var(--color-warning)'
+const outcomeLabel = (o: string) => o === 'accurate' ? '✓ Preciso' : o === 'inaccurate' ? '✗ Impreciso' : '~ Parcial'
 
 export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, simId?: string, simIds?: string[]) => void }) {
   const [sims, setSims] = useState<Sim[]>([])
+  const [feedbackMap, setFeedbackMap] = useState<FeedbackMap>({})
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/simulations').then(r => r.json()).then(d => { setSims(d); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/simulations').then(r => r.json()).then((data: Sim[]) => {
+      setSims(data)
+      setLoading(false)
+      // Fetch feedback for completed sims (best-effort, non-blocking)
+      const completed = data.filter(s => s.status === 'complete')
+      Promise.all(
+        completed.map(s =>
+          fetch(`/api/simulations/${s.id}/accuracy`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+            .then(acc => acc?.feedback ? [s.id, acc.feedback] as const : null)
+        )
+      ).then(results => {
+        const map: FeedbackMap = {}
+        for (const r of results) {
+          if (r) map[r[0]] = { outcome: r[1].outcome, delta_score: r[1].delta_score }
+        }
+        setFeedbackMap(map)
+      })
+    }).catch(() => setLoading(false))
   }, [])
 
   const statusColor = (s: string) => s === 'complete' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'failed' ? 'var(--color-danger)' : 'var(--color-warning)'
@@ -73,6 +97,11 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
+                {feedbackMap[sim.id] && (
+                  <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${outcomeColor(feedbackMap[sim.id].outcome)}22`, color: outcomeColor(feedbackMap[sim.id].outcome), fontWeight: '600' }}>
+                    {outcomeLabel(feedbackMap[sim.id].outcome)}
+                  </div>
+                )}
                 {sim.status === 'complete' && (
                   <>
                     <button

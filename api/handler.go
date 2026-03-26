@@ -185,6 +185,13 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/simulations/{id}/export/pdf", h.exportPDF)
 	r.Get("/simulations/{id}/events", h.getSimulationEvents)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
+	r.Get("/simulations/{id}/accuracy", h.getSimulationAccuracy)
+	r.Post("/simulations/{id}/confirm-rupture", h.confirmRupture)
+	r.Get("/simulations/{id}/confirmations", h.getSimulationConfirmations)
+
+	// Company-level accuracy & confirmations
+	r.Get("/company/accuracy", h.getCompanyAccuracy)
+	r.Get("/company/confirmations", h.getCompanyConfirmations)
 
 	// Quick pulse (fast tension check, no full simulation)
 	r.Post("/pulse", h.quickPulse)
@@ -1049,7 +1056,7 @@ func (h *Handler) submitFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// a) Persist feedback to DB
-	if err := h.db.SaveFeedback(id, body.Outcome, body.Notes); err != nil {
+	if err := h.db.SaveFeedback(id, body.Outcome, body.PredictedFracture, body.ActualOutcome, body.Notes, body.DeltaScore); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save feedback")
 		return
 	}
@@ -1788,4 +1795,97 @@ func (h *Handler) setTelemetry(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = h.auditLogger.Log("telemetry.updated", "system", map[string]bool{"enabled": body.Enabled})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// ─── Accuracy ─────────────────────────────────────────────────────────────────
+
+func (h *Handler) getCompanyAccuracy(w http.ResponseWriter, r *http.Request) {
+	companyID := h.companyID()
+	if companyID == "" {
+		writeError(w, http.StatusBadRequest, "company not configured")
+		return
+	}
+	report, err := h.db.GetAccuracyReport(companyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load accuracy report")
+		return
+	}
+	writeJSON(w, http.StatusOK, report)
+}
+
+func (h *Handler) getSimulationAccuracy(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	fb, err := h.db.GetSimulationFeedback(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load feedback")
+		return
+	}
+	confs, err := h.db.GetSimulationConfirmations(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load confirmations")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"feedback":      fb,
+		"confirmations": confs,
+	})
+}
+
+// ─── Confirmed Ruptures ───────────────────────────────────────────────────────
+
+func (h *Handler) confirmRupture(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var body struct {
+		RuleID          string `json:"rule_id"`
+		RuleDescription string `json:"rule_description"`
+		Notes           string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON")
+		return
+	}
+	if body.RuleDescription == "" {
+		writeError(w, http.StatusBadRequest, "rule_description required")
+		return
+	}
+	rupID := fmt.Sprintf("%s-%s", id, body.RuleID)
+	if err := h.db.SaveConfirmedRupture(rupID, id, body.RuleID, body.RuleDescription, body.Notes); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save confirmation")
+		return
+	}
+	_ = h.auditLogger.Log("rupture.confirmed", id, map[string]interface{}{
+		"rule_id":          body.RuleID,
+		"rule_description": body.RuleDescription,
+	})
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) getSimulationConfirmations(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	confs, err := h.db.GetSimulationConfirmations(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load confirmations")
+		return
+	}
+	if confs == nil {
+		confs = []db.ConfirmedRupture{}
+	}
+	writeJSON(w, http.StatusOK, confs)
+}
+
+func (h *Handler) getCompanyConfirmations(w http.ResponseWriter, r *http.Request) {
+	companyID := h.companyID()
+	if companyID == "" {
+		writeError(w, http.StatusBadRequest, "company not configured")
+		return
+	}
+	confs, err := h.db.GetConfirmedRuptures(companyID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load confirmations")
+		return
+	}
+	if confs == nil {
+		confs = []db.ConfirmedRupture{}
+	}
+	writeJSON(w, http.StatusOK, confs)
 }

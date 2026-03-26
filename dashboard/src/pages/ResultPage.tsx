@@ -70,14 +70,22 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [skill, setSkill] = useState<string>('')
+  const [confirmedRuleIds, setConfirmedRuleIds] = useState<Set<string>>(new Set())
+  const [confirmingRuleId, setConfirmingRuleId] = useState<string | null>(null)
+  const [confirmNotes, setConfirmNotes] = useState('')
+  const [confirmSaving, setConfirmSaving] = useState(false)
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/simulations/${simId}/report`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
       fetch(`/api/simulations/${simId}`).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([rep, job]) => {
+      fetch(`/api/simulations/${simId}/confirmations`).then(r => r.ok ? r.json() : []).catch(() => []),
+    ]).then(([rep, job, confs]) => {
       setReport(rep)
       if (job?.skill) setSkill(job.skill)
+      if (Array.isArray(confs)) {
+        setConfirmedRuleIds(new Set(confs.map((c: { rule_id: string }) => c.rule_id)))
+      }
       setLoading(false)
     }).catch(e => { setError(e.message); setLoading(false) })
   }, [simId])
@@ -98,6 +106,22 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
   )
 
   const conf = (v: number) => `${Math.round(v * 100)}%`
+
+  const handleConfirmRupture = async (s: RuptureScenario) => {
+    setConfirmSaving(true)
+    try {
+      await fetch(`/api/simulations/${simId}/confirm-rupture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rule_id: s.rule_id, rule_description: s.rule_description, notes: confirmNotes }),
+      })
+      setConfirmedRuleIds(prev => new Set([...prev, s.rule_id]))
+      setConfirmingRuleId(null)
+      setConfirmNotes('')
+    } finally {
+      setConfirmSaving(false)
+    }
+  }
 
   return (
     <div style={{ padding: '32px', maxWidth: '960px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -226,27 +250,74 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
         <div>
           <SectionTitle>Rupture Scenarios</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {report.rupture_scenarios.map((s, i) => (
-              <Card key={i}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)', flex: 1 }}>{s.rule_description}</div>
-                  <span style={{ marginLeft: '12px', padding: '3px 10px', borderRadius: '20px', background: `${probColor(s.probability)}22`, color: probColor(s.probability), fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                    {conf(s.probability)}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                  <div><strong style={{ color: 'var(--color-text)' }}>Who breaks it:</strong> {s.who_breaks}</div>
-                  <div><strong style={{ color: 'var(--color-text)' }}>How:</strong> {s.how_it_happens}</div>
-                  <div><strong style={{ color: 'var(--color-text)' }}>Impact:</strong> {s.impact_on_company}</div>
-                </div>
-                {s.how_to_be_first && (
-                  <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: 'oklch(0.18 0.04 145)', border: '1px solid oklch(0.35 0.1 145)', fontSize: '13px' }}>
-                    <strong style={{ color: 'oklch(0.7 0.15 145)', display: 'block', marginBottom: '4px' }}>How to be first:</strong>
-                    <span style={{ color: 'var(--color-text)' }}>{s.how_to_be_first}</span>
+            {report.rupture_scenarios.map((s, i) => {
+              const isConfirmed = confirmedRuleIds.has(s.rule_id)
+              const isConfirming = confirmingRuleId === s.rule_id
+              return (
+                <Card key={i}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)', flex: 1 }}>{s.rule_description}</div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '12px' }}>
+                      {isConfirmed && (
+                        <span style={{ padding: '3px 10px', borderRadius: '20px', background: 'var(--color-success)22', color: 'var(--color-success)', fontSize: '11px', fontWeight: '700' }}>✓ CONFIRMADA</span>
+                      )}
+                      <span style={{ padding: '3px 10px', borderRadius: '20px', background: `${probColor(s.probability)}22`, color: probColor(s.probability), fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+                        {conf(s.probability)}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </Card>
-            ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+                    <div><strong style={{ color: 'var(--color-text)' }}>Who breaks it:</strong> {s.who_breaks}</div>
+                    <div><strong style={{ color: 'var(--color-text)' }}>How:</strong> {s.how_it_happens}</div>
+                    <div><strong style={{ color: 'var(--color-text)' }}>Impact:</strong> {s.impact_on_company}</div>
+                  </div>
+                  {s.how_to_be_first && (
+                    <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: 'oklch(0.18 0.04 145)', border: '1px solid oklch(0.35 0.1 145)', fontSize: '13px' }}>
+                      <strong style={{ color: 'oklch(0.7 0.15 145)', display: 'block', marginBottom: '4px' }}>How to be first:</strong>
+                      <span style={{ color: 'var(--color-text)' }}>{s.how_to_be_first}</span>
+                    </div>
+                  )}
+                  {!isConfirmed && (
+                    <div style={{ marginTop: '12px' }}>
+                      {!isConfirming ? (
+                        <button
+                          onClick={() => setConfirmingRuleId(s.rule_id)}
+                          style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          ✓ Esta ruptura se confirmou
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--color-background)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                          <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text)' }}>Confirmar ruptura real</div>
+                          <textarea
+                            placeholder="Observações opcionais..."
+                            value={confirmNotes}
+                            onChange={e => setConfirmNotes(e.target.value)}
+                            rows={2}
+                            style={{ resize: 'vertical', padding: '8px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '12px', fontFamily: 'inherit' }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => handleConfirmRupture(s)}
+                              disabled={confirmSaving}
+                              style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'var(--color-success)', color: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                              {confirmSaving ? 'Salvando...' : '✓ Confirmar'}
+                            </button>
+                            <button
+                              onClick={() => { setConfirmingRuleId(null); setConfirmNotes('') }}
+                              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
         </div>
       )}

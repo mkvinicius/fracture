@@ -5,6 +5,7 @@ const nav = [
   { id: 'new-simulation', label: 'New Simulation',icon: '◈' },
   { id: 'simulations',    label: 'History',      icon: '◎' },
   { id: 'archetypes',     label: 'Archetypes',   icon: '◇' },
+  { id: 'accuracy',       label: 'Accuracy',     icon: '◉' },
   { id: 'settings',       label: 'Settings',     icon: '⚙' },
 ] as const
 

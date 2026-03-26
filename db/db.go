@@ -377,13 +377,194 @@ func (d *DB) GetDomainContexts(simulationID string) ([]DomainContextRow, error) 
 }
 
 // SaveFeedback stores user feedback for a simulation.
-func (d *DB) SaveFeedback(simulationID, outcome, notes string) error {
+func (d *DB) SaveFeedback(simulationID, outcome, predictedFracture, actualOutcome, notes string, deltaScore float64) error {
 	_, err := d.Exec(`
-		INSERT INTO feedback (simulation_id, outcome, notes, created_at)
-		VALUES (?, ?, ?, unixepoch())
-		ON CONFLICT(simulation_id) DO UPDATE SET outcome = excluded.outcome, notes = excluded.notes
-	`, simulationID, outcome, notes)
+		INSERT INTO feedback (simulation_id, outcome, predicted_fracture, actual_outcome, delta_score, notes, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, unixepoch())
+		ON CONFLICT(simulation_id) DO UPDATE SET
+			outcome            = excluded.outcome,
+			predicted_fracture = excluded.predicted_fracture,
+			actual_outcome     = excluded.actual_outcome,
+			delta_score        = excluded.delta_score,
+			notes              = excluded.notes
+	`, simulationID, outcome, predictedFracture, actualOutcome, deltaScore, notes)
 	return err
+}
+
+// ─── Accuracy ────────────────────────────────────────────────────────────────
+
+// FeedbackRow is a persisted feedback record enriched with delta fields.
+type FeedbackRow struct {
+	SimulationID      string  `json:"simulation_id"`
+	Outcome           string  `json:"outcome"`
+	PredictedFracture string  `json:"predicted_fracture"`
+	ActualOutcome     string  `json:"actual_outcome"`
+	DeltaScore        float64 `json:"delta_score"`
+	Notes             string  `json:"notes"`
+	CreatedAt         int64   `json:"created_at"`
+}
+
+// GetSimulationFeedback returns the feedback record for a specific simulation, if any.
+func (d *DB) GetSimulationFeedback(simulationID string) (*FeedbackRow, error) {
+	row := &FeedbackRow{}
+	err := d.QueryRow(`
+		SELECT simulation_id,
+		       COALESCE(outcome,''),
+		       COALESCE(predicted_fracture,''),
+		       COALESCE(actual_outcome,''),
+		       COALESCE(delta_score,0.0),
+		       COALESCE(notes,''),
+		       created_at
+		FROM feedback WHERE simulation_id = ?
+	`, simulationID).Scan(
+		&row.SimulationID, &row.Outcome, &row.PredictedFracture,
+		&row.ActualOutcome, &row.DeltaScore, &row.Notes, &row.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return row, err
+}
+
+// AccuracyReport summarises feedback accuracy for a company.
+type AccuracyReport struct {
+	FeedbackCount    int     `json:"feedback_count"`
+	AverageDelta     float64 `json:"average_delta"`      // −1..+1
+	AccurateCount    int     `json:"accurate_count"`     // outcome == 'accurate'
+	PartialCount     int     `json:"partial_count"`
+	InaccurateCount  int     `json:"inaccurate_count"`
+	Calibrations     []CalibrationRow `json:"calibrations"`
+}
+
+// CalibrationRow is a single archetype calibration entry for the report.
+type CalibrationRow struct {
+	ArchetypeID    string  `json:"archetype_id"`
+	Domain         string  `json:"domain"`
+	AccuracyWeight float64 `json:"accuracy_weight"`
+	SampleCount    int     `json:"sample_count"`
+}
+
+// GetAccuracyReport aggregates feedback and calibration for a company.
+func (d *DB) GetAccuracyReport(companyID string) (*AccuracyReport, error) {
+	report := &AccuracyReport{}
+
+	// Overall feedback stats — only simulations belonging to the company
+	err := d.QueryRow(`
+		SELECT
+			COUNT(*),
+			COALESCE(AVG(f.delta_score), 0.0),
+			SUM(CASE WHEN f.outcome = 'accurate'   THEN 1 ELSE 0 END),
+			SUM(CASE WHEN f.outcome = 'partial'    THEN 1 ELSE 0 END),
+			SUM(CASE WHEN f.outcome = 'inaccurate' THEN 1 ELSE 0 END)
+		FROM feedback f
+		INNER JOIN simulation_jobs sj ON sj.id = f.simulation_id
+		WHERE sj.company = ?
+	`, companyID).Scan(
+		&report.FeedbackCount,
+		&report.AverageDelta,
+		&report.AccurateCount,
+		&report.PartialCount,
+		&report.InaccurateCount,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("accuracy report stats: %w", err)
+	}
+
+	// Archetype calibration rows for this company
+	rows, err := d.Query(`
+		SELECT ac.archetype_id, ac.domain, ac.accuracy_weight, ac.sample_count
+		FROM archetype_calibration ac
+		INNER JOIN simulation_rounds sr ON sr.agent_id = ac.archetype_id
+		INNER JOIN simulation_jobs   sj ON sj.id       = sr.simulation_id
+		WHERE sj.company = ?
+		GROUP BY ac.archetype_id, ac.domain
+		ORDER BY ac.accuracy_weight DESC
+	`, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("accuracy calibrations: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c CalibrationRow
+		if err := rows.Scan(&c.ArchetypeID, &c.Domain, &c.AccuracyWeight, &c.SampleCount); err != nil {
+			continue
+		}
+		report.Calibrations = append(report.Calibrations, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("accuracy calibrations scan: %w", err)
+	}
+	return report, nil
+}
+
+// ─── Confirmed Ruptures ───────────────────────────────────────────────────────
+
+// ConfirmedRupture records a real-world rupture event confirmed by the user.
+type ConfirmedRupture struct {
+	ID              string `json:"id"`
+	SimulationID    string `json:"simulation_id"`
+	RuleID          string `json:"rule_id"`
+	RuleDescription string `json:"rule_description"`
+	Notes           string `json:"notes"`
+	ConfirmedAt     int64  `json:"confirmed_at"`
+}
+
+// SaveConfirmedRupture persists a confirmed rupture. Duplicate (sim+rule) is ignored.
+func (d *DB) SaveConfirmedRupture(id, simulationID, ruleID, ruleDescription, notes string) error {
+	_, err := d.Exec(`
+		INSERT OR IGNORE INTO confirmed_ruptures
+			(id, simulation_id, rule_id, rule_description, notes, confirmed_at)
+		VALUES (?, ?, ?, ?, ?, unixepoch())
+	`, id, simulationID, ruleID, ruleDescription, notes)
+	return err
+}
+
+// GetSimulationConfirmations returns confirmed ruptures for a specific simulation.
+func (d *DB) GetSimulationConfirmations(simulationID string) ([]ConfirmedRupture, error) {
+	rows, err := d.Query(`
+		SELECT id, simulation_id, rule_id, rule_description, COALESCE(notes,''), confirmed_at
+		FROM confirmed_ruptures
+		WHERE simulation_id = ?
+		ORDER BY confirmed_at DESC
+	`, simulationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []ConfirmedRupture
+	for rows.Next() {
+		var r ConfirmedRupture
+		if err := rows.Scan(&r.ID, &r.SimulationID, &r.RuleID, &r.RuleDescription, &r.Notes, &r.ConfirmedAt); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
+}
+
+// GetConfirmedRuptures returns all confirmed ruptures for a company.
+func (d *DB) GetConfirmedRuptures(companyID string) ([]ConfirmedRupture, error) {
+	rows, err := d.Query(`
+		SELECT cr.id, cr.simulation_id, cr.rule_id, cr.rule_description,
+		       COALESCE(cr.notes,''), cr.confirmed_at
+		FROM confirmed_ruptures cr
+		INNER JOIN simulation_jobs sj ON sj.id = cr.simulation_id
+		WHERE sj.company = ?
+		ORDER BY cr.confirmed_at DESC
+	`, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []ConfirmedRupture
+	for rows.Next() {
+		var r ConfirmedRupture
+		if err := rows.Scan(&r.ID, &r.SimulationID, &r.RuleID, &r.RuleDescription, &r.Notes, &r.ConfirmedAt); err != nil {
+			continue
+		}
+		result = append(result, r)
+	}
+	return result, rows.Err()
 }
 
 // ─── Audit Log ───────────────────────────────────────────────────────────────
