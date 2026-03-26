@@ -17,15 +17,15 @@ func (m *mockLLM) Call(ctx context.Context, systemPrompt, userPrompt string, max
 
 func TestBuiltinConformistsCount(t *testing.T) {
 	conformists := BuiltinConformists(&mockLLM{})
-	if len(conformists) < 20 {
-		t.Errorf("expected at least 20 conformist archetypes, got %d", len(conformists))
+	if len(conformists) < 37 {
+		t.Errorf("expected at least 37 conformist archetypes, got %d", len(conformists))
 	}
 }
 
 func TestBuiltinDisruptorsCount(t *testing.T) {
 	disruptors := BuiltinDisruptors(&mockLLM{})
-	if len(disruptors) < 12 {
-		t.Errorf("expected at least 12 disruptor archetypes, got %d", len(disruptors))
+	if len(disruptors) < 19 {
+		t.Errorf("expected at least 19 disruptor archetypes, got %d", len(disruptors))
 	}
 }
 
@@ -62,8 +62,8 @@ func TestNoDuplicateArchetypeNames(t *testing.T) {
 
 func TestTotalAgentCount(t *testing.T) {
 	total := len(BuiltinConformists(&mockLLM{})) + len(BuiltinDisruptors(&mockLLM{}))
-	if total < 32 {
-		t.Errorf("expected at least 32 total agents, got %d", total)
+	if total < 56 {
+		t.Errorf("expected at least 56 total agents, got %d", total)
 	}
 }
 
