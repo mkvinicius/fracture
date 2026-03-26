@@ -30,12 +30,12 @@ func TourismSkill() *Skill {
 
 		Agents: []SkillAgent{
 			{
-				Name:        "Brian Chesky",
-				Role:        "Hospitality Disruptor & Belonging Economy Champion",
-				Traits:      []string{"Airbnb", "belong anywhere", "host economy", "experience marketplace", "home sharing", "local experiences"},
-				Goals:       []string{"every home a potential accommodation", "experiences over hotels"},
-				Biases:      []string{"standardized hotel experience", "OTA commoditization of hospitality"},
-				Power:       0.90,
+				Name:        "Herb Kelleher",
+				Role:        "Low-Cost Aviation Pioneer & Southwest Airlines Founder",
+				Traits:      []string{"Southwest Airlines", "low-cost carrier model", "point-to-point routes", "employees first customers second", "fun as competitive strategy", "no assigned seats", "quick turnaround"},
+				Goals:       []string{"democratize air travel for everyone", "prove low-cost can coexist with great culture"},
+				Biases:      []string{"hub-and-spoke complexity", "legacy carrier cost structure", "unions as adversaries rather than partners"},
+				Power:       0.88,
 				IsDisruptor: true,
 			},
 			{
@@ -48,13 +48,13 @@ func TourismSkill() *Skill {
 				IsDisruptor: false,
 			},
 			{
-				Name:        "ANAC Director",
-				Role:        "Aviation Safety & Market Regulator",
-				Traits:      []string{"ANAC", "aviation safety", "route authorization", "slot allocation", "RBAC compliance"},
-				Goals:       []string{"safety above all", "market competition within safety bounds"},
-				Biases:      []string{"unsafe operators", "slot hoarding by dominant carriers"},
-				Power:       0.90,
-				IsDisruptor: false,
+				Name:        "Juan Trippe",
+				Role:        "Mass Aviation Pioneer & Pan Am Founder",
+				Traits:      []string{"Pan American Airways", "democratize air travel", "Boeing 747 the jumbo jet", "international route pioneer", "aviation as instrument of peace", "mass travel creating global understanding"},
+				Goals:       []string{"air travel for everyone not just the wealthy", "aviation connecting cultures and creating peace"},
+				Biases:      []string{"aviation as luxury for the few", "protectionist route restrictions"},
+				Power:       0.85,
+				IsDisruptor: true,
 			},
 			{
 				Name:        "Guilherme Paulus",

@@ -9,7 +9,7 @@ func SaaSSkill() *Skill {
 		Name:        "SaaS & Tech B2B",
 		Description: "Simulação especializada para SaaS, software empresarial, plataformas B2B e startups de tecnologia.",
 		Industries: []string{
-			"saas", "software", "tech", "tecnologia", "startup",
+			"saas", "software", "tecnologia", "startup",
 			"B2B", "plataforma", "platform", "API", "cloud",
 			"nuvem", "ERP", "CRM", "marketplace B2B",
 			"developer tools", "devtools", "vertical software",
@@ -32,13 +32,13 @@ func SaaSSkill() *Skill {
 
 		Agents: []SkillAgent{
 			{
-				Name:        "Thiago Paiva",
-				Role:        "Vertical SaaS Builder & NRR Optimizer",
-				Traits:      []string{"vertical SaaS", "NRR obsession", "customer success", "land and expand", "product-market fit"},
-				Goals:       []string{"NRR above 130%", "become the OS of a specific vertical"},
-				Biases:      []string{"horizontal generic software", "low NRR tolerance"},
-				Power:       0.85,
-				IsDisruptor: true,
+				Name:        "Ben Horowitz",
+				Role:        "Hard Things About Hard Things & Wartime CEO Expert",
+				Traits:      []string{"The Hard Thing About Hard Things", "wartime vs peacetime CEO", "people management in crisis", "nobody cares just bring solutions", "the struggle", "a16z founding partner", "product-market fit is not enough"},
+				Goals:       []string{"build companies that survive the hard things", "management as craft not formula"},
+				Biases:      []string{"management frameworks that ignore psychological reality", "peacetime thinking in wartime situations"},
+				Power:       0.88,
+				IsDisruptor: false,
 			},
 			{
 				Name:        "Jason Lemkin",
