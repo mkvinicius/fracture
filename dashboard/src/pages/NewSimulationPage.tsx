@@ -12,12 +12,20 @@ const DEPARTMENTS = ['Marketing', 'HR', 'Finance', 'Product', 'Sales', 'Operatio
 const ROUNDS = [10, 15, 20, 30, 40]
 
 const INDUSTRIES = [
-  { id: '', label: '— Outro (sem skill específica)', description: '' },
+  { id: '', label: '— Geral (sem skill específica)', description: '' },
   { id: 'healthcare', label: '🏥 Healthcare & Life Sciences', description: 'Agentes especializados em regulação ANVISA, reembolso SUS/ANS, healthtechs, hospitais e pharma. Inclui Paul Farmer, Atul Gawande, Eric Topol e outros.' },
   { id: 'fintech', label: '💳 Fintech & Financial Services', description: 'Agentes especializados em Open Finance, PIX, regulação BACEN/CVM, neobanks e criptomoedas. Inclui David Vélez, Sébastian Mejía, Vitalik Buterin e outros.' },
   { id: 'retail', label: '🛒 Retail & Consumer', description: 'Agentes especializados em e-commerce, marketplaces, omnichannel, PROCON e consumer behavior. Inclui Marcos Galperin, Luiza Trajano, Abilio Diniz e outros.' },
   { id: 'legal', label: '⚖️ Legal & LegalTech', description: 'Agentes especializados em regulação OAB, automação jurídica, acesso à justiça e ética profissional. Inclui Daniel Kessler, Modesto Carvalhosa e outros.' },
   { id: 'education', label: '🎓 Education & EdTech', description: 'Agentes especializados em regulação MEC, EAD, microlearning, credencialismo e futuro do trabalho. Inclui Salman Khan, Daphne Koller e outros.' },
+  { id: 'agro', label: '🌱 Agro & AgriTech', description: 'Agentes especializados em commodities, MAPA, ESG/desmatamento, precision agriculture e cadeia do agro. Inclui Marcos Jank, Blairo Maggi, Rachel Maia e outros.' },
+  { id: 'construction', label: '🏗️ Construção Civil & PropTech', description: 'Agentes especializados em CAIXA/FGTS, MCMV, CREA, proptech e mercado imobiliário. Inclui Elie Horn, Eduardo Fischer, Patrícia Pereira e outros.' },
+  { id: 'logistics', label: '🚚 Logística & Supply Chain', description: 'Agentes especializados em ANTT, last-mile, frete marketplace, cold chain e porto de Santos. Inclui Fábio Schvartsman, Paulo Guimarães, Cristina Palmaka e outros.' },
+  { id: 'saas', label: '💻 SaaS & Tech B2B', description: 'Agentes especializados em ARR/NRR, vertical SaaS, AI coding tools, LGPD e enterprise GTM. Inclui Jason Lemkin, Henrique Dubugras, David Sacks e outros.' },
+  { id: 'energy', label: '⚡ Energia & Utilities', description: 'Agentes especializados em ANEEL, solar distribuída, Petrobras, hidrogênio verde e transição energética. Inclui Jean-Paul Prates, Roberto Wajsman, Rodrigo Limp e outros.' },
+  { id: 'manufacturing', label: '🏭 Indústria & Manufatura', description: 'Agentes especializados em Custo Brasil, Indústria 4.0, reshoring, BNDES e competição chinesa. Inclui Paulo Skaf, Klaus Schwab, Sergio Rial e outros.' },
+  { id: 'media', label: '📺 Mídia & Entretenimento', description: 'Agentes especializados em streaming, creator economy, CONAR, AI content e publicidade digital. Inclui João Roberto Marinho, Reed Hastings, MrBeast e outros.' },
+  { id: 'tourism', label: '✈️ Turismo & Hospitalidade', description: 'Agentes especializados em ANAC, OTAs, Airbnb, LATAM/Gol e experience economy. Inclui Brian Chesky, Guilherme Paulus, Chip Conley e outros.' },
 ]
 
 const URL_PLACEHOLDERS: Record<string, string> = {

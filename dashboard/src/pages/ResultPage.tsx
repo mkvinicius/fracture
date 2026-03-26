@@ -50,11 +50,19 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 }
 
 const SKILL_BADGES: Record<string, { label: string; emoji: string; color: string }> = {
-  healthcare: { label: 'Healthcare Skill', emoji: '🏥', color: 'oklch(0.55 0.18 160)' },
-  fintech:    { label: 'Fintech Skill',    emoji: '💳', color: 'oklch(0.55 0.18 250)' },
-  retail:     { label: 'Retail Skill',     emoji: '🛒', color: 'oklch(0.55 0.18 55)'  },
-  legal:      { label: 'Legal Skill',      emoji: '⚖️', color: 'oklch(0.55 0.18 30)'  },
-  education:  { label: 'Education Skill',  emoji: '🎓', color: 'oklch(0.55 0.18 300)' },
+  healthcare:    { label: 'Healthcare Skill',    emoji: '🏥', color: 'oklch(0.50 0.18 160)' },
+  fintech:       { label: 'Fintech Skill',       emoji: '💳', color: 'oklch(0.50 0.18 250)' },
+  retail:        { label: 'Retail Skill',        emoji: '🛒', color: 'oklch(0.50 0.18 55)'  },
+  legal:         { label: 'Legal Skill',         emoji: '⚖️', color: 'oklch(0.50 0.18 30)'  },
+  education:     { label: 'Education Skill',     emoji: '🎓', color: 'oklch(0.50 0.18 300)' },
+  agro:          { label: 'Agro Skill',          emoji: '🌱', color: 'oklch(0.50 0.18 140)' },
+  construction:  { label: 'Construction Skill',  emoji: '🏗️', color: 'oklch(0.50 0.18 50)'  },
+  logistics:     { label: 'Logistics Skill',     emoji: '🚚', color: 'oklch(0.50 0.18 220)' },
+  saas:          { label: 'SaaS Skill',          emoji: '💻', color: 'oklch(0.50 0.18 270)' },
+  energy:        { label: 'Energy Skill',        emoji: '⚡', color: 'oklch(0.50 0.18 80)'  },
+  manufacturing: { label: 'Manufacturing Skill', emoji: '🏭', color: 'oklch(0.50 0.18 200)' },
+  media:         { label: 'Media Skill',         emoji: '📺', color: 'oklch(0.50 0.18 330)' },
+  tourism:       { label: 'Tourism Skill',       emoji: '✈️', color: 'oklch(0.50 0.18 190)' },
 }
 
 export default function ResultPage({ simId, onNavigate }: { simId: string; onNavigate: (p: Page, simId?: string) => void }) {

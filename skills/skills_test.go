@@ -5,7 +5,11 @@ import (
 )
 
 func TestSkillRegistry(t *testing.T) {
-	expectedIDs := []string{"healthcare", "fintech", "retail", "legal", "education"}
+	expectedIDs := []string{
+		"healthcare", "fintech", "retail", "legal", "education",
+		"agro", "construction", "logistics", "saas", "energy",
+		"manufacturing", "media", "tourism",
+	}
 	for _, id := range expectedIDs {
 		sk, ok := Registry[id]
 		if !ok {
@@ -38,6 +42,14 @@ func TestSkillDetect(t *testing.T) {
 		{"How would a marketplace like Mercado Livre disrupt retail?", "Sales", "retail"},
 		{"What happens if OAB bans AI in legal practice?", "Operations", "legal"},
 		{"How will EAD affect university credentialism?", "Product", "education"},
+		{"What if soja exports to China are blocked by EU deforestation rules?", "Strategy", "agro"},
+		{"How would rising SELIC rates affect our incorporadora strategy?", "Finance", "construction"},
+		{"If ANTT removes the tabelamento de fretes, what happens to logistics?", "Operations", "logistics"},
+		{"How would TOTVS entering our ERP niche affect our SaaS growth?", "Product", "saas"},
+		{"How will distributed solar generation affect our energia distribuída margins?", "Strategy", "energy"},
+		{"What if Chinese imports eliminate our indústria competitive advantage?", "Strategy", "manufacturing"},
+		{"How would TikTok banning creators affect our mídia strategy?", "Marketing", "media"},
+		{"If Airbnb captures 30% of hotel bookings, what happens in turismo?", "Sales", "tourism"},
 		{"Generic question about market disruption", "Marketing", ""},
 	}
 
@@ -118,6 +130,36 @@ func TestLegalAndEducationRules(t *testing.T) {
 	}
 }
 
+func TestNewSkillsRules(t *testing.T) {
+	twelveRuleSkills := []string{"agro", "construction", "logistics", "saas", "energy", "manufacturing", "media"}
+	for _, id := range twelveRuleSkills {
+		sk := Registry[id]
+		if sk == nil {
+			t.Fatalf("skill %q not registered", id)
+		}
+		if len(sk.Rules) < 12 {
+			t.Errorf("skill %q: expected at least 12 rules, got %d", id, len(sk.Rules))
+		}
+		for _, r := range sk.Rules {
+			if r.ID == "" {
+				t.Errorf("skill %q has rule with empty ID", id)
+			}
+			if r.Stability < 0 || r.Stability > 1 {
+				t.Errorf("skill %q rule %q stability out of range: %.2f", id, r.ID, r.Stability)
+			}
+		}
+	}
+
+	// Tourism has 10 rules
+	sk := Registry["tourism"]
+	if sk == nil {
+		t.Fatal("tourism skill not registered")
+	}
+	if len(sk.Rules) < 10 {
+		t.Errorf("tourism: expected at least 10 rules, got %d", len(sk.Rules))
+	}
+}
+
 func TestSkillAgents(t *testing.T) {
 	for id, sk := range Registry {
 		if id != sk.ID {
@@ -140,7 +182,21 @@ func TestTotalSkills(t *testing.T) {
 	for _, sk := range Registry {
 		uniqueIDs[sk.ID] = true
 	}
-	if len(uniqueIDs) < 5 {
-		t.Errorf("expected at least 5 unique skills, got %d", len(uniqueIDs))
+	if len(uniqueIDs) < 13 {
+		t.Errorf("expected at least 13 unique skills, got %d", len(uniqueIDs))
+	}
+}
+
+func TestSkillContextAndQueries(t *testing.T) {
+	for id, sk := range Registry {
+		if id != sk.ID {
+			continue
+		}
+		if sk.Context == "" {
+			t.Errorf("skill %q has empty Context", id)
+		}
+		if len(sk.Queries) == 0 {
+			t.Errorf("skill %q has no Queries", id)
+		}
 	}
 }
