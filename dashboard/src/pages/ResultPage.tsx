@@ -123,6 +123,13 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
             <button onClick={() => downloadFile(`/api/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
             <button onClick={() => downloadFile(`/api/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
             <button
+              onClick={() => window.open(`/api/simulations/${simId}/export/pdf`, '_blank')}
+              title="Abre relatório otimizado para impressão. Use Ctrl+P → Salvar como PDF."
+              style={{ padding: '9px 14px', borderRadius: '8px', border: 'none', background: '#0f172a', color: '#ffffff', fontSize: '12px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              📄 PDF
+            </button>
+            <button
               onClick={() => onNavigate('feedback', simId)}
               style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >

@@ -182,6 +182,7 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/simulations/{id}/report", h.getReport)
 	r.Get("/simulations/{id}/export/markdown", h.exportMarkdown)
 	r.Get("/simulations/{id}/export/json", h.exportJSON)
+	r.Get("/simulations/{id}/export/pdf", h.exportPDF)
 	r.Get("/simulations/{id}/events", h.getSimulationEvents)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
 
@@ -1675,6 +1676,33 @@ func (h *Handler) exportJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="fracture-%s.json"`, id))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(b)
+}
+
+func (h *Handler) exportPDF(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	report, err := h.loadFullReport(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	// Resolve skill from in-memory job map (fast path), then fall back to DB.
+	skillID := ""
+	h.simMu.RLock()
+	if job, ok := h.simJobs[id]; ok {
+		skillID = job.Skill
+	}
+	h.simMu.RUnlock()
+	if skillID == "" {
+		if job, dbErr := h.db.GetJob(id); dbErr == nil {
+			skillID = job.Skill
+		}
+	}
+	htmlDoc := engine.ReportToHTML(report, skillID)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="fracture-%s.html"`, id))
+	w.Header().Set("X-FRACTURE-Export", "pdf-ready")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(htmlDoc))
 }
 
 func (h *Handler) compareSimulations(w http.ResponseWriter, r *http.Request) {
