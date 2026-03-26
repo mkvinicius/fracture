@@ -76,6 +76,15 @@ func MediaSkill() *Skill {
 				Power:       0.88,
 				IsDisruptor: true,
 			},
+			{
+				Name:        "Walter Lippmann",
+				Role:        "Public Opinion & Media Reality Construction Pioneer",
+				Traits:      []string{"Public Opinion 1922", "the pictures in our heads", "pseudo-environment", "stereotype as cognitive shortcut", "manufacture of consent", "the world outside and the pictures in our heads", "journalism as democracy's requirement"},
+				Goals:       []string{"understand how media constructs the reality people act on", "journalism that serves democracy not spectacle", "pseudo-environment — we act on pictures in our heads not world itself", "stereotypes are not errors — they are necessary cognitive shortcuts that can become prisons"},
+				Biases:      []string{"media that manufactures consent instead of informing", "stereotypes replacing genuine understanding", "spectacle substituting for information"},
+				Power:       0.88,
+				IsDisruptor: false,
+			},
 		},
 
 		Context: `MEDIA & ENTERTAINMENT CONTEXT FOR FRACTURE SIMULATION:

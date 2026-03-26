@@ -76,6 +76,15 @@ func ConstructionSkill() *Skill {
 				Power:       0.80,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Jane Jacobs",
+				Role:        "Urban Life & Mixed-Use City Champion",
+				Traits:      []string{"The Death and Life of Great American Cities 1961", "eyes on the street", "mixed uses", "short blocks", "aged buildings", "concentration", "against urban renewal as city destruction"},
+				Goals:       []string{"cities as complex living systems not planned machines", "mixed-use density over single-use zoning", "eyes on the street — safety through overlapping uses and activity", "aged buildings enabling economic diversity — new buildings price out variety"},
+				Biases:      []string{"urban renewal that destroys functioning neighborhoods", "single-use zoning that kills street life", "towers in parks that eliminate ground-level activity"},
+				Power:       0.90,
+				IsDisruptor: true,
+			},
 		},
 
 		Context: `CONSTRUCTION SECTOR CONTEXT FOR FRACTURE SIMULATION:

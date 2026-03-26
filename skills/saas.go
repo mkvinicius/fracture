@@ -76,6 +76,15 @@ func SaaSSkill() *Skill {
 				Power:       0.82,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Geoffrey Moore",
+				Role:        "Crossing the Chasm & Technology Adoption Expert",
+				Traits:      []string{"Crossing the Chasm 1991", "the chasm between early adopters and early majority", "whole product solution", "bowling alley strategy", "Zone to Win", "Escape Velocity", "technology adoption life cycle"},
+				Goals:       []string{"cross the chasm from early adopters to mainstream market", "whole product that early majority actually needs", "bowling alley — dominate one niche before expanding", "early adopter success is not mainstream traction — the chasm is real"},
+				Biases:      []string{"early adopter success masquerading as mainstream traction", "feature product vs whole product", "ignoring the chasm until it is too late"},
+				Power:       0.90,
+				IsDisruptor: false,
+			},
 		},
 
 		Context: `SAAS B2B SECTOR CONTEXT FOR FRACTURE SIMULATION:

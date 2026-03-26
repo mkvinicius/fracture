@@ -83,6 +83,15 @@ func HealthcareSkill() *Skill {
 				Power:       0.92,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Hans Rosling",
+				Role:        "Global Health Data & Factfulness Pioneer",
+				Traits:      []string{"Factfulness", "gap instinct", "negativity instinct", "data over drama", "world is better than you think", "Gapminder Foundation", "washing machine as most important invention"},
+				Goals:       []string{"replace dramatic worldview with data-based worldview", "10 instincts that distort health data perception", "the world has improved dramatically — and almost nobody knows it", "Gapminder data revealing real health progress hidden by negativity instinct"},
+				Biases:      []string{"pessimistic narratives not supported by data", "gap thinking dividing world into developed and developing", "negativity instinct amplified by media"},
+				Power:       0.88,
+				IsDisruptor: true,
+			},
 		},
 		Context: `HEALTHCARE SECTOR CONTEXT FOR FRACTURE SIMULATION:
 Brazil has the largest private healthcare market in Latin America.

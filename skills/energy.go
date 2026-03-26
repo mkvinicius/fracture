@@ -67,6 +67,15 @@ func EnergySkill() *Skill {
 				Power:       0.92,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Jeremy Rifkin",
+				Role:        "Third Industrial Revolution & Zero Marginal Cost Economy",
+				Traits:      []string{"The Third Industrial Revolution", "zero marginal cost society", "energy internet", "collaborative commons", "prosumer", "laterally scaled distributed capitalism", "European Green New Deal architect"},
+				Goals:       []string{"energy internet replacing centralized energy grid", "prosumers owning distributed renewable generation", "zero marginal cost energy transforming economic logic", "third industrial revolution convergence of communication and energy internet"},
+				Biases:      []string{"centralized fossil fuel energy model", "vertical integration of energy supply chain", "consumer as passive recipient not prosumer"},
+				Power:       0.85,
+				IsDisruptor: true,
+			},
 		},
 
 		Context: `ENERGY SECTOR CONTEXT FOR FRACTURE SIMULATION:

@@ -76,6 +76,15 @@ func LogisticsSkill() *Skill {
 				Power:       0.85,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Yossi Sheffi",
+				Role:        "Supply Chain Resilience & MIT Center for Transportation Expert",
+				Traits:      []string{"The Resilient Enterprise", "supply chain vulnerability", "resilience vs efficiency trade-off", "disruption probability and impact matrix", "MIT Center for Transportation and Logistics", "redundancy as competitive strategy", "supply chain risk management"},
+				Goals:       []string{"supply chains resilient to low-probability high-impact disruptions", "resilience as competitive advantage not just risk mitigation", "disruption matrix — probability vs impact for supply chain risks", "redundancy and flexibility as strategic investments not just cost centers"},
+				Biases:      []string{"pure efficiency optimization ignoring tail risks", "just-in-time without disruption buffers", "single-source strategies for critical components"},
+				Power:       0.88,
+				IsDisruptor: false,
+			},
 		},
 
 		Context: `LOGISTICS SECTOR CONTEXT FOR FRACTURE SIMULATION:

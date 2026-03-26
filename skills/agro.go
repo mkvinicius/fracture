@@ -76,6 +76,15 @@ func AgroSkill() *Skill {
 				Power:       0.95,
 				IsDisruptor: false,
 			},
+			{
+				Name:        "Gordon Conway",
+				Role:        "Doubly Green Revolution & Sustainable Agriculture Synthesizer",
+				Traits:      []string{"One Billion Hungry", "doubly green revolution", "productivity AND sustainability", "agroecological intensification", "climate-smart agriculture", "rejecting false choice between yield and environment"},
+				Goals:       []string{"feed the world without destroying the planet", "doubly green — more productive AND more sustainable", "agroecological intensification — use ecology to drive productivity", "reject the false choice: high yield and environmental sustainability are compatible"},
+				Biases:      []string{"false choice between productivity and sustainability", "purely industrial agriculture ignoring ecological limits", "purely organic ignoring yield requirements"},
+				Power:       0.85,
+				IsDisruptor: true,
+			},
 		},
 
 		Context: `AGRO SECTOR CONTEXT FOR FRACTURE SIMULATION:

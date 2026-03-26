@@ -17,15 +17,15 @@ func (m *mockLLM) Call(ctx context.Context, systemPrompt, userPrompt string, max
 
 func TestBuiltinConformistsCount(t *testing.T) {
 	conformists := BuiltinConformists(&mockLLM{})
-	if len(conformists) < 37 {
-		t.Errorf("expected at least 37 conformist archetypes, got %d", len(conformists))
+	if len(conformists) < 59 {
+		t.Errorf("expected at least 59 conformist archetypes, got %d", len(conformists))
 	}
 }
 
 func TestBuiltinDisruptorsCount(t *testing.T) {
 	disruptors := BuiltinDisruptors(&mockLLM{})
-	if len(disruptors) < 19 {
-		t.Errorf("expected at least 19 disruptor archetypes, got %d", len(disruptors))
+	if len(disruptors) < 28 {
+		t.Errorf("expected at least 28 disruptor archetypes, got %d", len(disruptors))
 	}
 }
 
@@ -49,21 +49,29 @@ func TestArchetypePersonalityFields(t *testing.T) {
 }
 
 func TestNoDuplicateArchetypeNames(t *testing.T) {
-	all := append(BuiltinConformists(&mockLLM{}), BuiltinDisruptors(&mockLLM{})...)
-	seen := make(map[string]bool)
-	for _, a := range all {
-		name := a.Personality().Name
-		if seen[name] {
-			t.Errorf("duplicate archetype name: %q", name)
+	// Check no duplicates within each pool independently.
+	// The same historical figure may intentionally appear in both conformist and
+	// disruptor pools with different roles (e.g. Adam Smith, Karl Marx).
+	pools := [][]engine.Agent{
+		BuiltinConformists(&mockLLM{}),
+		BuiltinDisruptors(&mockLLM{}),
+	}
+	for _, pool := range pools {
+		seen := make(map[string]bool)
+		for _, a := range pool {
+			name := a.Personality().Name
+			if seen[name] {
+				t.Errorf("duplicate archetype name within pool: %q", name)
+			}
+			seen[name] = true
 		}
-		seen[name] = true
 	}
 }
 
 func TestTotalAgentCount(t *testing.T) {
 	total := len(BuiltinConformists(&mockLLM{})) + len(BuiltinDisruptors(&mockLLM{}))
-	if total < 56 {
-		t.Errorf("expected at least 56 total agents, got %d", total)
+	if total < 87 {
+		t.Errorf("expected at least 87 total agents, got %d", total)
 	}
 }
 

@@ -67,6 +67,33 @@ func ManufacturingSkill() *Skill {
 				Power:       0.90,
 				IsDisruptor: true,
 			},
+			{
+				Name:        "W. Edwards Deming",
+				Role:        "Statistical Quality Control & System of Profound Knowledge",
+				Traits:      []string{"14 points for management", "PDCA cycle", "system of profound knowledge", "variation is the enemy", "drove out fear", "transformed Japanese manufacturing", "quality is everyone's job not quality department's"},
+				Goals:       []string{"eliminate variation through statistical understanding", "system of profound knowledge over management by results", "PDCA — plan do check act as continuous improvement engine", "14 points: constancy of purpose — cease dependence on inspection — drive out fear"},
+				Biases:      []string{"management by results that destroys intrinsic motivation", "individual blame for systemic problems", "short-term thinking destroying long-term quality"},
+				Power:       0.95,
+				IsDisruptor: false,
+			},
+			{
+				Name:        "Vilfredo Pareto",
+				Role:        "80/20 Principle & Distribution Law Originator",
+				Traits:      []string{"Pareto principle — 80% of effects from 20% of causes", "Pareto efficiency", "Pareto distribution", "elite circulation theory", "wealth concentration as natural law", "Cours d'économie politique 1896", "most powerful analytical tool in management"},
+				Goals:       []string{"identify the vital few from the trivial many", "resource allocation focused on highest-impact causes", "80/20 — 20% of defects cause 80% of quality problems", "Pareto efficiency — no reallocation can improve one without worsening another"},
+				Biases:      []string{"uniform allocation of effort across all factors", "treating all causes as equally important", "egalitarian distribution ignoring natural concentration"},
+				Power:       0.92,
+				IsDisruptor: false,
+			},
+			{
+				Name:        "Joseph Juran",
+				Role:        "Quality Trilogy & Fitness for Use Champion",
+				Traits:      []string{"Juran Trilogy — quality planning control improvement", "fitness for use", "cost of quality", "vital few and useful many", "quality is not free but it pays", "Juran Institute", "internal customer concept"},
+				Goals:       []string{"quality defined by customer use not producer specification", "quality trilogy as management system not inspection system", "cost of quality — prevention cheaper than failure", "internal customer — every process has a customer who defines fitness for use"},
+				Biases:      []string{"quality as inspection after production", "producer-defined quality ignoring customer use", "cost of quality hidden in operations"},
+				Power:       0.90,
+				IsDisruptor: false,
+			},
 		},
 
 		Context: `MANUFACTURING SECTOR CONTEXT FOR FRACTURE SIMULATION:

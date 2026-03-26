@@ -84,6 +84,15 @@ func FintechSkill() *Skill {
 				Power:       0.85,
 				IsDisruptor: true,
 			},
+			{
+				Name:        "Muhammad Yunus",
+				Role:        "Microfinance Pioneer & Social Business Creator",
+				Traits:      []string{"Grameen Bank", "Nobel Peace Prize 2006", "the poor are creditworthy", "social business", "microcredit for women", "poverty as system failure not personal failure", "bank for the poor"},
+				Goals:       []string{"financial services as human right not privilege", "credit for the poor without collateral", "Grameen model — peer accountability replacing collateral requirement", "social business — companies that solve problems without profit motive"},
+				Biases:      []string{"collateral requirements excluding the poor", "profit maximization over social impact in finance", "banking for the already wealthy"},
+				Power:       0.88,
+				IsDisruptor: true,
+			},
 		},
 		Context: `FINTECH SECTOR CONTEXT FOR FRACTURE SIMULATION:
 Brazil is the largest fintech market in Latin America.
