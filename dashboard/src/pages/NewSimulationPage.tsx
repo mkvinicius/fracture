@@ -11,6 +11,15 @@ const TEMPLATES = [
 const DEPARTMENTS = ['Marketing', 'HR', 'Finance', 'Product', 'Sales', 'Operations', 'Strategy']
 const ROUNDS = [10, 15, 20, 30, 40]
 
+const INDUSTRIES = [
+  { id: '', label: '— Outro (sem skill específica)', description: '' },
+  { id: 'healthcare', label: '🏥 Healthcare & Life Sciences', description: 'Agentes especializados em regulação ANVISA, reembolso SUS/ANS, healthtechs, hospitais e pharma. Inclui Paul Farmer, Atul Gawande, Eric Topol e outros.' },
+  { id: 'fintech', label: '💳 Fintech & Financial Services', description: 'Agentes especializados em Open Finance, PIX, regulação BACEN/CVM, neobanks e criptomoedas. Inclui David Vélez, Sébastian Mejía, Vitalik Buterin e outros.' },
+  { id: 'retail', label: '🛒 Retail & Consumer', description: 'Agentes especializados em e-commerce, marketplaces, omnichannel, PROCON e consumer behavior. Inclui Marcos Galperin, Luiza Trajano, Abilio Diniz e outros.' },
+  { id: 'legal', label: '⚖️ Legal & LegalTech', description: 'Agentes especializados em regulação OAB, automação jurídica, acesso à justiça e ética profissional. Inclui Daniel Kessler, Modesto Carvalhosa e outros.' },
+  { id: 'education', label: '🎓 Education & EdTech', description: 'Agentes especializados em regulação MEC, EAD, microlearning, credencialismo e futuro do trabalho. Inclui Salman Khan, Daphne Koller e outros.' },
+]
+
 const URL_PLACEHOLDERS: Record<string, string> = {
   website:   'https://yourcompany.com',
   linkedin:  'https://linkedin.com/company/yourcompany',
@@ -41,6 +50,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
   const [simPhase, setSimPhase] = useState<'idle' | 'researching' | 'running'>('idle')
   const [researchSources, setResearchSources] = useState(0)
   const [error, setError] = useState('')
+  const [industry, setIndustry] = useState('')
   const [showUrlSection, setShowUrlSection] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [extractedSummary, setExtractedSummary] = useState('')
@@ -98,7 +108,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
       const res = await fetch('/api/simulations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, department, rounds, context, urls })
+        body: JSON.stringify({ question, department, rounds, context, urls, industry })
       })
       const data = await res.json()
       if (data.id) {
@@ -173,6 +183,19 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
             {ROUNDS.map(r => <option key={r} value={r}>{r} rounds (~{Math.round(r * 1.5)}s)</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Industry / Vertical */}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Setor / Vertical <span style={{ fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+        <select style={{ ...Input }} value={industry} onChange={e => setIndustry(e.target.value)}>
+          {INDUSTRIES.map(ind => <option key={ind.id} value={ind.id}>{ind.label}</option>)}
+        </select>
+        {industry && INDUSTRIES.find(i => i.id === industry)?.description && (
+          <div style={{ marginTop: '8px', padding: '10px 14px', borderRadius: '8px', background: 'oklch(0.65 0.22 30 / 0.06)', border: '1px solid oklch(0.65 0.22 30 / 0.2)', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.6' }}>
+            {INDUSTRIES.find(i => i.id === industry)?.description}
+          </div>
+        )}
       </div>
 
       {/* Company URLs Section */}

@@ -195,6 +195,7 @@ type JobRow struct {
 	Rounds          int    `json:"rounds"`
 	Mode            string `json:"mode,omitempty"`
 	Company         string `json:"company,omitempty"`
+	Skill           string `json:"skill,omitempty"`
 	Error           string `json:"error,omitempty"`
 	ResearchSources int    `json:"research_sources,omitempty"`
 	ResearchTokens  int    `json:"research_tokens,omitempty"`
@@ -214,15 +215,16 @@ type JobRow struct {
 func (d *DB) UpsertJob(j *JobRow) error {
 	_, err := d.Exec(`
 			INSERT INTO simulation_jobs
-				(id, status, question, department, rounds, mode, company, error_msg,
+				(id, status, question, department, rounds, mode, company, skill, error_msg,
 				 research_sources, research_tokens, duration_ms,
 				 current_round, current_tension, fracture_count,
 				 last_agent_name, last_agent_action, total_tokens,
 				 created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
 			ON CONFLICT(id) DO UPDATE SET
 				status           = excluded.status,
 				mode             = excluded.mode,
+				skill            = excluded.skill,
 				error_msg        = excluded.error_msg,
 				research_sources = excluded.research_sources,
 				research_tokens  = excluded.research_tokens,
@@ -234,7 +236,7 @@ func (d *DB) UpsertJob(j *JobRow) error {
 				last_agent_action = excluded.last_agent_action,
 				total_tokens     = excluded.total_tokens,
 				updated_at       = unixepoch()
-		`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Mode, j.Company, j.Error,
+		`, j.ID, j.Status, j.Question, j.Department, j.Rounds, j.Mode, j.Company, j.Skill, j.Error,
 		j.ResearchSources, j.ResearchTokens, j.DurationMs,
 		j.CurrentRound, j.CurrentTension, j.FractureCount,
 		j.LastAgentName, j.LastAgentAction, j.TotalTokens,
@@ -246,12 +248,12 @@ func (d *DB) UpsertJob(j *JobRow) error {
 func (d *DB) GetJob(id string) (*JobRow, error) {
 	var j JobRow
 	err := d.QueryRow(`
-			SELECT id, status, question, department, rounds, mode, company, error_msg,
+			SELECT id, status, question, department, rounds, mode, company, skill, error_msg,
 			       research_sources, research_tokens, duration_ms, created_at, updated_at,
 			       current_round, current_tension, fracture_count,
 			       last_agent_name, last_agent_action, total_tokens
 			FROM simulation_jobs WHERE id = ?
-		`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Error,
+		`, id).Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Skill, &j.Error,
 		&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
 		&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
 		&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens)
@@ -264,7 +266,7 @@ func (d *DB) GetJob(id string) (*JobRow, error) {
 // ListJobs returns all jobs ordered by creation time (newest first).
 func (d *DB) ListJobs() ([]JobRow, error) {
 	rows, err := d.Query(`
-		SELECT id, status, question, department, rounds, mode, company, error_msg,
+		SELECT id, status, question, department, rounds, mode, company, skill, error_msg,
 		       research_sources, research_tokens, duration_ms, created_at, updated_at,
 		       current_round, current_tension, fracture_count,
 		       last_agent_name, last_agent_action, total_tokens
@@ -277,7 +279,7 @@ func (d *DB) ListJobs() ([]JobRow, error) {
 	var result []JobRow
 	for rows.Next() {
 		var j JobRow
-		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Error,
+		if err := rows.Scan(&j.ID, &j.Status, &j.Question, &j.Department, &j.Rounds, &j.Mode, &j.Company, &j.Skill, &j.Error,
 			&j.ResearchSources, &j.ResearchTokens, &j.DurationMs, &j.CreatedAt, &j.UpdatedAt,
 			&j.CurrentRound, &j.CurrentTension, &j.FractureCount,
 			&j.LastAgentName, &j.LastAgentAction, &j.TotalTokens); err != nil {

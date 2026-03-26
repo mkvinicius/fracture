@@ -141,6 +141,28 @@ Respond in JSON format:
 	return action, nil
 }
 
+// NewDisruptorAgent creates a single disruptor agent from raw personality parameters.
+// Used by the skills package to inject vertical-specific agents into simulations.
+func NewDisruptorAgent(name, role string, traits, goals, biases []string, power, personalityFactor float64, llm engine.LLMCaller) engine.Agent {
+	return &disruptorAgent{
+		BaseAgent: engine.NewBaseAgent(
+			uuid.New().String(),
+			engine.AgentDisruptor,
+			engine.DisruptorPermissions,
+			engine.Personality{
+				Name:        name,
+				Role:        role,
+				Traits:      traits,
+				Goals:       goals,
+				Biases:      biases,
+				PowerWeight: power,
+			},
+		),
+		llm:               llm,
+		personalityFactor: personalityFactor,
+	}
+}
+
 // BuiltinDisruptors returns 19 real-world expert Disruptor archetypes.
 func BuiltinDisruptors(llm engine.LLMCaller) []engine.Agent {
 	specs := []struct {

@@ -49,16 +49,29 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   )
 }
 
+const SKILL_BADGES: Record<string, { label: string; emoji: string; color: string }> = {
+  healthcare: { label: 'Healthcare Skill', emoji: '🏥', color: 'oklch(0.55 0.18 160)' },
+  fintech:    { label: 'Fintech Skill',    emoji: '💳', color: 'oklch(0.55 0.18 250)' },
+  retail:     { label: 'Retail Skill',     emoji: '🛒', color: 'oklch(0.55 0.18 55)'  },
+  legal:      { label: 'Legal Skill',      emoji: '⚖️', color: 'oklch(0.55 0.18 30)'  },
+  education:  { label: 'Education Skill',  emoji: '🎓', color: 'oklch(0.55 0.18 300)' },
+}
+
 export default function ResultPage({ simId, onNavigate }: { simId: string; onNavigate: (p: Page, simId?: string) => void }) {
   const [report, setReport] = useState<FullReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [skill, setSkill] = useState<string>('')
 
   useEffect(() => {
-    fetch(`/api/simulations/${simId}/report`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-      .then(d => { setReport(d); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
+    Promise.all([
+      fetch(`/api/simulations/${simId}/report`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+      fetch(`/api/simulations/${simId}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([rep, job]) => {
+      setReport(rep)
+      if (job?.skill) setSkill(job.skill)
+      setLoading(false)
+    }).catch(e => { setError(e.message); setLoading(false) })
   }, [simId])
 
   if (loading) return (
@@ -85,7 +98,14 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
         <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Back</button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '16px', gap: '16px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Simulation Report</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Simulation Report</h1>
+              {skill && SKILL_BADGES[skill] && (
+                <span style={{ padding: '3px 10px', borderRadius: '20px', background: SKILL_BADGES[skill].color, color: '#fff', fontSize: '11px', fontWeight: '700', letterSpacing: '0.4px' }}>
+                  {SKILL_BADGES[skill].emoji} {SKILL_BADGES[skill].label.toUpperCase()}
+                </span>
+              )}
+            </div>
             <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--color-text-muted)' }}>{report.question}</p>
             <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
               {report.total_tokens.toLocaleString()} tokens · {(report.duration_ms / 1000).toFixed(1)}s · {report.watermark.version}

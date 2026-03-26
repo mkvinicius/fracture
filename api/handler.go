@@ -18,6 +18,7 @@ import (
 	"github.com/fracture/fracture/llm"
 	"github.com/fracture/fracture/memory"
 	"github.com/fracture/fracture/security"
+	"github.com/fracture/fracture/skills"
 	"github.com/fracture/fracture/telemetry"
 	"github.com/fracture/fracture/updater"
 	"github.com/go-chi/chi/v5"
@@ -46,7 +47,8 @@ type simJob struct {
 	Question        string `json:"question"`
 	Department      string `json:"department"`
 	Rounds          int    `json:"rounds"`
-	Mode            string `json:"mode,omitempty"` // standard | premium
+	Mode            string `json:"mode,omitempty"`  // standard | premium
+	Skill           string `json:"skill,omitempty"` // vertical skill ID e.g. "healthcare"
 	CreatedAt       int64  `json:"created_at"`
 	DurationMs      int64  `json:"duration_ms,omitempty"`
 	Error           string `json:"error,omitempty"`
@@ -104,6 +106,7 @@ func NewHandler(
 				ResearchSources: j.ResearchSources,
 				ResearchTokens:  j.ResearchTokens,
 				Company:         j.Company,
+				Skill:           j.Skill,
 				// Restore live progress from DB so SSE is accurate after restart
 				CurrentRound:    j.CurrentRound,
 				CurrentTension:  j.CurrentTension,
@@ -130,6 +133,7 @@ func (h *Handler) persistJob(j *simJob) {
 		Rounds:          j.Rounds,
 		Mode:            j.Mode,
 		Company:         j.Company,
+		Skill:           j.Skill,
 		Error:           j.Error,
 		ResearchSources: j.ResearchSources,
 		ResearchTokens:  j.ResearchTokens,
@@ -412,7 +416,8 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Rounds     int      `json:"rounds"`
 		Mode       string   `json:"mode"`
 		Context    string   `json:"context"`
-		URLs       []string `json:"urls"` // optional: company website + social media URLs
+		URLs       []string `json:"urls"`     // optional: company website + social media URLs
+		Industry   string   `json:"industry"` // optional: vertical skill ID e.g. "healthcare"
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -464,6 +469,18 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		Rounds:     body.Rounds,
 		Mode:       string(simMode),
 		CreatedAt:  time.Now().Unix(),
+	}
+
+	// Detect vertical skill: explicit industry field takes priority, then keyword detection
+	if body.Industry != "" {
+		if sk, ok := skills.Registry[body.Industry]; ok {
+			job.Skill = sk.ID
+		}
+	}
+	if job.Skill == "" {
+		if sk := skills.Detect(cleanQ, body.Department); sk != nil {
+			job.Skill = sk.ID
+		}
 	}
 
 	// Extract company name from saved profile (best-effort)
@@ -586,7 +603,19 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		}
 	}
 
-	// Step 5: Run the full FRACTURE simulation with enriched context
+	// Step 5: Inject vertical skill context if a skill was detected
+	if job.Skill != "" {
+		if sk, ok := skills.Registry[job.Skill]; ok && sk.Context != "" {
+			if enrichedContext != "" {
+				enrichedContext = sk.Context + "\n\n" + enrichedContext
+			} else {
+				enrichedContext = sk.Context
+			}
+			log.Printf("[FRACTURE] Skill context injected for sim %s (skill: %s)", job.ID, job.Skill)
+		}
+	}
+
+	// Step 6: Run the full FRACTURE simulation with enriched context
 	h.runSimulation(job, enrichedContext, domainResults)
 }
 
@@ -627,6 +656,17 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 	}
 	world, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
 
+	// Inject vertical skill rules into the world
+	if job.Skill != "" {
+		if sk, ok := skills.Registry[job.Skill]; ok {
+			for _, r := range sk.Rules {
+				rCopy := *r
+				world.Rules[rCopy.ID] = &rCopy
+				world.TensionMap[rCopy.ID] = 0.0
+			}
+		}
+	}
+
 	// Build agents
 	conformistLLM := router.ForRole(llm.RoleConformist)
 	disruptorLLM := router.ForRole(llm.RoleDisruptor)
@@ -634,6 +674,20 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		archetypes.BuiltinConformists(conformistLLM),
 		archetypes.BuiltinDisruptors(disruptorLLM)...,
 	)
+
+	// Inject vertical skill agents
+	if job.Skill != "" {
+		if sk, ok := skills.Registry[job.Skill]; ok {
+			for _, sa := range sk.Agents {
+				if sa.IsDisruptor {
+					agents = append(agents, archetypes.NewDisruptorAgent(sa.Name, sa.Role, sa.Traits, sa.Goals, sa.Biases, sa.Power, 1.3, disruptorLLM))
+				} else {
+					agents = append(agents, archetypes.NewConformistAgent(sa.Name, sa.Role, sa.Traits, sa.Goals, sa.Biases, sa.Power, conformistLLM))
+				}
+			}
+			log.Printf("[FRACTURE] Injected %d skill agents from %s (sim %s)", len(sk.Agents), job.Skill, job.ID)
+		}
+	}
 
 	// Apply archetype calibration: agents with higher accuracy_weight get more influence
 	if job.Company != "" {

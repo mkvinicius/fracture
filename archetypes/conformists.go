@@ -452,6 +452,12 @@ func BuiltinConformists(llm engine.LLMCaller) []engine.Agent {
 	return agents
 }
 
+// NewConformistAgent creates a single conformist agent from raw personality parameters.
+// Used by the skills package to inject vertical-specific agents into simulations.
+func NewConformistAgent(name, role string, traits, goals, biases []string, power float64, llm engine.LLMCaller) engine.Agent {
+	return buildConformist(name, role, traits, goals, biases, power, llm)
+}
+
 func buildConformist(name, role string, traits, goals, biases []string, power float64, llm engine.LLMCaller) engine.Agent {
 	return &conformistAgent{
 		BaseAgent: engine.NewBaseAgent(
