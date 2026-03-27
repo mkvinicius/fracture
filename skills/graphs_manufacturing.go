@@ -1,0 +1,41 @@
+package skills
+
+func init() {
+	RegisterGraph(&SkillGraph{
+		SkillID: "manufacturing",
+		Relations: []MindRelation{
+			{From: "Frederick Taylor", To: "Taiichi Ohno",
+				Type:        "influenced",
+				Description: "Ohno studied Taylor but rejected task standardization in favor of flow. TPS is both Taylor's heir and his critic.",
+				Strength:    0.85},
+			{From: "Taiichi Ohno", To: "Frederick Taylor",
+				Type:        "contradicts",
+				Description: "Ohno explicitly rejected time-and-motion standardization. TPS emphasizes worker judgment; Taylor eliminates it.",
+				Strength:    0.80},
+			{From: "Walter Shewhart", To: "W. Edwards Deming",
+				Type:        "influenced",
+				Description: "Deming was Shewhart's student. PDCA is Shewhart's invention popularized by Deming.",
+				Strength:    0.95},
+			{From: "W. Edwards Deming", To: "Taiichi Ohno",
+				Type:        "complements",
+				Description: "Deming's statistical quality control and Ohno's production flow are the two pillars of Japanese manufacturing excellence.",
+				Strength:    0.90},
+			{From: "Taiichi Ohno", To: "Eliyahu Goldratt",
+				Type:        "influenced",
+				Description: "Goldratt developed Theory of Constraints partly responding to TPS, focusing on bottleneck rather than waste.",
+				Strength:    0.75},
+			{From: "Eliyahu Goldratt", To: "W. Edwards Deming",
+				Type:        "critiques",
+				Description: "Goldratt argued that optimizing non-bottleneck processes wastes resources and is actively harmful.",
+				Strength:    0.75},
+			{From: "Vilfredo Pareto", To: "Joseph Juran",
+				Type:        "influenced",
+				Description: "Juran applied Pareto's 80/20 to quality — vital few defect causes produce most defects. Pareto Chart is Juran's invention.",
+				Strength:    0.90},
+			{From: "W. Edwards Deming", To: "Joseph Juran",
+				Type:        "contradicts",
+				Description: "Deming focused on system-level variation; Juran focused on project-by-project improvement. Both correct, philosophically opposed.",
+				Strength:    0.70},
+		},
+	})
+}

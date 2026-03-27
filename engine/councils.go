@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/fracture/fracture/skills"
 )
 
 // CouncilResult is the output of a single council debate.
@@ -38,10 +40,19 @@ func BuildCouncils(llm LLMCaller) []Council {
 func (c *Council) RunCouncilDebate(ctx context.Context, world *World, round int) (CouncilResult, error) {
 	prompt := c.buildPrompt(world, round)
 
-	raw, _, err := c.llm.Call(ctx, c.systemPrompt(), prompt, 400)
+	systemPrompt := c.systemPrompt()
+	if world.SkillID != "" {
+		allNames := skills.AllMindNames(world.SkillID)
+		relCtx := skills.FormatRelationsContext(world.SkillID, allNames)
+		if relCtx != "" {
+			systemPrompt += "\n\n" + relCtx
+		}
+	}
+
+	raw, _, err := c.llm.Call(ctx, systemPrompt, prompt, 400)
 	if err != nil {
 		// Single retry
-		raw, _, err = c.llm.Call(ctx, c.systemPrompt(), prompt, 400)
+		raw, _, err = c.llm.Call(ctx, systemPrompt, prompt, 400)
 		if err != nil {
 			return CouncilResult{}, fmt.Errorf("council %s round %d: %w", c.domain, round, err)
 		}

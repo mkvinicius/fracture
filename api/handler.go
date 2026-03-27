@@ -18,6 +18,7 @@ import (
 	"github.com/fracture/fracture/llm"
 	"github.com/fracture/fracture/memory"
 	"github.com/fracture/fracture/security"
+	"github.com/fracture/fracture/skills"
 	"github.com/fracture/fracture/telemetry"
 	"github.com/fracture/fracture/updater"
 	"github.com/go-chi/chi/v5"
@@ -647,6 +648,9 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		}
 	}
 	world, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
+	if _, ok := skills.Graphs[job.Department]; ok {
+		world.SkillID = job.Department
+	}
 
 	// Build agents
 	conformistLLM := router.ForRole(llm.RoleConformist)
@@ -703,6 +707,7 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 	ensembleResult, ensErr := engine.RunEnsemble(ctx, ensembleCfg, func(ctx context.Context, runIdx int) (*engine.RunResult, error) {
 		// Each ensemble run needs a fresh world (independent runs).
 		freshWorld, _ := engine.DefaultWorldForDomainWithContext(simCtx, domain, job.Question, domainContext, affectedRules, confidence)
+		freshWorld.SkillID = world.SkillID
 		runCfg := cfg
 		runCfg.World = freshWorld
 		runCfg.ID = job.ID // keep same ID for round persistence on run 0 only

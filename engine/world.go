@@ -46,6 +46,7 @@ type World struct {
 	TensionMap   map[string]float64 `json:"tension_map"`    // ruleID -> tension 0.0-1.0
 	RoundHistory []WorldSnapshot    `json:"round_history"`
 	Evidence     string             `json:"evidence,omitempty"` // domain context from DeepSearch (read-only, not voted on)
+	SkillID      string             `json:"skill_id,omitempty"` // active skill for GraphRAG enrichment
 }
 
 // WorldSnapshot is an immutable snapshot of the world at a given round.
