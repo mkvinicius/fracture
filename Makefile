@@ -1,4 +1,4 @@
-.PHONY: all build build-dashboard build-go run clean release test setup
+.PHONY: all build build-dashboard build-go build-mac-app run clean release test setup
 
 VERSION ?= dev
 BINARY  := fracture
@@ -49,6 +49,12 @@ release:
 ## release-snapshot: build without publishing (for testing)
 release-snapshot:
 	goreleaser release --snapshot --clean
+
+## build-mac-app: build FRACTURE.app + DMG for macOS (requires macOS)
+build-mac-app:
+	make build
+	chmod +x scripts/build-mac-app.sh
+	./scripts/build-mac-app.sh $(VERSION)
 
 ## setup: create .env from .env.example if it doesn't exist yet
 setup:

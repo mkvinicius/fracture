@@ -43,6 +43,12 @@ archives:
       - README.md
       - LICENSE
 
+after:
+  hooks:
+    # macOS: build .app bundle + DMG (only runs on macOS build host)
+    - cmd: bash scripts/build-mac-app.sh {{ .Version }}
+      if: '{{ eq .Os "darwin" }}'
+
 checksum:
   name_template: "fracture_{{ .Version }}_checksums.txt"
 

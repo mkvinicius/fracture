@@ -153,6 +153,22 @@ chmod +x fracture
 
 The dashboard opens automatically in your browser at `http://localhost:3000`.
 
+### macOS
+
+#### Opção 1 — App (recomendado)
+1. Baixe `FRACTURE-VERSION-macOS.dmg` em [Releases](https://github.com/mkvinicius/fracture/releases/latest)
+2. Abra o DMG e arraste FRACTURE para Applications
+3. Dê duplo clique em FRACTURE
+4. Se aparecer aviso de segurança:
+   Clique direito → Abrir → Abrir mesmo assim
+5. O browser abre automaticamente com o setup
+
+#### Opção 2 — Terminal
+```bash
+./fracture-darwin-arm64   # Apple Silicon (M1/M2/M3)
+./fracture-darwin-amd64   # Intel
+```
+
 ### Build from source
 
 Requirements: Go 1.21+, Node.js 18+
