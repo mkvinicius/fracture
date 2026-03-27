@@ -36,6 +36,14 @@ Everything runs **100% locally**. No cloud, no subscription, no data leaves your
 
 ---
 
+## Documentation
+
+- [Quickstart](docs/quickstart.md)
+- [API Reference](docs/api.md)
+- [CHANGELOG](CHANGELOG.md)
+
+---
+
 ## Architecture
 
 ```
@@ -206,6 +214,16 @@ Each agent has:
 Agent calibration is updated automatically when you submit feedback: accurate predictions increase an archetype's weight, inaccurate ones decrease it.
 
 ---
+
+## Commands
+
+```bash
+make build            # build completo (dashboard + Go)
+make test             # rodar todos os testes
+make dev-backend      # servidor Go em modo dev
+make dev-frontend     # dashboard React em modo dev
+make release-snapshot # build de release local
+```
 
 ## Development
 

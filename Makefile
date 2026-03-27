@@ -1,4 +1,4 @@
-.PHONY: all build build-dashboard build-go run clean release test
+.PHONY: all build build-dashboard build-go run clean release test test-verbose dev-backend dev-frontend lint
 
 VERSION ?= dev
 BINARY  := fracture
@@ -36,6 +36,22 @@ dev:
 ## test: run Go tests
 test:
 	go test ./... -v -race -timeout 60s
+
+## test-verbose: run Go tests with verbose output
+test-verbose:
+	go test -v ./...
+
+## dev-backend: run Go server in dev mode (no dashboard build)
+dev-backend:
+	go run .
+
+## dev-frontend: run React dashboard dev server
+dev-frontend:
+	cd dashboard && pnpm dev
+
+## lint: run Go vet
+lint:
+	go vet ./...
 
 ## clean: remove build artifacts
 clean:
