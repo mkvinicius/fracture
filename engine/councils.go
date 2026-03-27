@@ -7,6 +7,15 @@ import (
 	"sync"
 )
 
+// SkillGraph is the interface councils use to enrich debate prompts with
+// graph-retrieved context from past simulations. Implemented by skills.Graph.
+// Defined here (not in the skills package) so engine does not need to import skills.
+type SkillGraph interface {
+	// RelatedContext returns up to limit plain-text evidence strings relevant
+	// to the given domain and question, ranked by graph similarity.
+	RelatedContext(domain, question string, limit int) ([]string, error)
+}
+
 // CouncilResult is the output of a single council debate.
 type CouncilResult struct {
 	Domain   RuleDomain `json:"domain"`
@@ -18,17 +27,26 @@ type CouncilResult struct {
 type Council struct {
 	domain RuleDomain
 	llm    LLMCaller
+	graph  SkillGraph // optional; nil disables graph enrichment
 }
 
-// BuildCouncils creates one Council per RuleDomain.
+// BuildCouncils creates one Council per RuleDomain without graph enrichment.
+// Use BuildCouncilsWithGraph when a skills.Graph is available.
 func BuildCouncils(llm LLMCaller) []Council {
+	return BuildCouncilsWithGraph(llm, nil)
+}
+
+// BuildCouncilsWithGraph creates one Council per RuleDomain, injecting g into
+// each council so debate prompts are enriched with past-simulation graph context.
+// Pass g = nil to disable graph enrichment (equivalent to BuildCouncils).
+func BuildCouncilsWithGraph(llm LLMCaller, g SkillGraph) []Council {
 	domains := []RuleDomain{
 		DomainMarket, DomainTechnology, DomainRegulation,
 		DomainBehavior, DomainCulture, DomainGeopolitics, DomainFinance,
 	}
 	councils := make([]Council, 0, len(domains))
 	for _, d := range domains {
-		councils = append(councils, Council{domain: d, llm: llm})
+		councils = append(councils, Council{domain: d, llm: llm, graph: g})
 	}
 	return councils
 }
@@ -82,6 +100,19 @@ func (c *Council) buildPrompt(world *World, round int) string {
 		if r, ok := world.Rules[ruleID]; ok && r.Domain == c.domain {
 			sb.WriteString(fmt.Sprintf("- %s: %.2f\n", r.Description, t))
 			count++
+		}
+	}
+
+	// Graph-augmented context: inject relevant past-simulation evidence.
+	if c.graph != nil {
+		fragments, err := c.graph.RelatedContext(string(c.domain), world.Evidence, 3)
+		if err == nil && len(fragments) > 0 {
+			sb.WriteString("\nRelated past-simulation signals:\n")
+			for _, f := range fragments {
+				sb.WriteString("- ")
+				sb.WriteString(f)
+				sb.WriteString("\n")
+			}
 		}
 	}
 
