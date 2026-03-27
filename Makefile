@@ -1,4 +1,4 @@
-.PHONY: all build build-dashboard build-go run clean release test
+.PHONY: all build build-dashboard build-go run clean release test setup
 
 VERSION ?= dev
 BINARY  := fracture
@@ -49,6 +49,10 @@ release:
 ## release-snapshot: build without publishing (for testing)
 release-snapshot:
 	goreleaser release --snapshot --clean
+
+## setup: create .env from .env.example if it doesn't exist yet
+setup:
+	@cp -n .env.example .env && echo ".env criado — configure suas chaves" || echo ".env já existe"
 
 ## install-goreleaser: install GoReleaser
 install-goreleaser:

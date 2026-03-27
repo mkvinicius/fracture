@@ -178,13 +178,27 @@ FRACTURE stores data in the platform data directory:
 - **macOS**: `~/Library/Application Support/FRACTURE/data.db`
 - **Windows**: `%APPDATA%\FRACTURE\data.db`
 
+```bash
+# Criar arquivo de configuração
+make setup
+
+# Editar e adicionar suas chaves
+nano .env  # ou seu editor preferido
+```
+
 ### Environment Variables
 
-| Variable          | Description                                                       |
-|-------------------|-------------------------------------------------------------------|
-| `OPENAI_API_KEY`  | OpenAI API key (LLM calls in DeepSearch + simulation narrative)   |
-| `TAVILY_API_KEY`  | Tavily search key (optional, improves DeepSearch quality)         |
-| `SERPAPI_KEY`     | SerpAPI key (optional, fallback web search)                       |
+| Variable                | Description                                                                |
+|-------------------------|----------------------------------------------------------------------------|
+| `LLM_API_KEY`           | Chave da API LLM (Anthropic ou OpenAI)                                     |
+| `LLM_BASE_URL`          | Base URL da API LLM (padrão: `https://api.anthropic.com`)                  |
+| `LLM_MODEL_NAME`        | Modelo principal (ex: `claude-sonnet-4-20250514`, `gpt-4o`)                |
+| `LLM_ROUTINE_MODEL`     | Modelo para tarefas rotineiras (opcional — usa `LLM_MODEL_NAME` se omitido)|
+| `TAVILY_API_KEY`        | Tavily search key (opcional, melhora qualidade do DeepSearch)              |
+| `SERPAPI_KEY`           | SerpAPI key (opcional, fallback de busca web)                              |
+| `PORT`                  | Porta do servidor HTTP (padrão: `8080`)                                    |
+| `FRACTURE_HMAC_SECRET`  | Chave HMAC para audit log (recomendado em produção)                        |
+| `DISABLE_UPDATE_CHECK`  | Desabilitar verificação automática de updates (`true`)                     |
 
 If no LLM API key is set, FRACTURE runs in **heuristic mode** — simulations complete using deterministic rules without LLM narrative generation.
 
