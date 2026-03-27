@@ -32,6 +32,24 @@ import (
 var dashboardFS embed.FS
 
 func main() {
+	// ── Carregar .env se existir ─────────────────────────────────────────────
+	if data, err := os.ReadFile(".env"); err == nil {
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				key := strings.TrimSpace(parts[0])
+				val := strings.TrimSpace(parts[1])
+				if os.Getenv(key) == "" { // não sobrescreve env existente
+					os.Setenv(key, val)
+				}
+			}
+		}
+	}
+
 	// ── Logger ──────────────────────────────────────────────────────────────
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 	log.Info().Str("version", updater.CurrentVersion).Msg("FRACTURE starting...")
@@ -74,6 +92,9 @@ func main() {
 	// API routes — canonical prefix is /api/v1
 	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger, tel)
 	r.Mount("/api/v1", apiHandler.Routes())
+
+	// Setup wizard page (served before SPA so it takes priority)
+	r.Get("/setup", apiHandler.ServeSetupPage)
 
 	// Backward compat: redirect /api/<path> → /api/v1/<path> (308 preserves method)
 	r.HandleFunc("/api/*", func(w http.ResponseWriter, req *http.Request) {
@@ -118,11 +139,15 @@ func main() {
 	defer stop()
 
 	go func() {
-		url := fmt.Sprintf("http://localhost:%d", port)
-		log.Info().Str("url", url).Msg("FRACTURE dashboard ready")
+		startURL := fmt.Sprintf("http://localhost:%d", port)
+		if os.Getenv("LLM_API_KEY") == "" {
+			startURL = fmt.Sprintf("http://localhost:%d/setup", port)
+			log.Info().Msg("LLM_API_KEY não configurada — abrindo setup")
+		}
+		log.Info().Str("url", startURL).Msg("FRACTURE dashboard ready")
 		// Small delay so the server is listening before the browser opens
 		time.Sleep(300 * time.Millisecond)
-		openBrowser(url)
+		openBrowser(startURL)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("server error")

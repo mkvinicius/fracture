@@ -152,6 +152,9 @@ func (h *Handler) Routes() http.Handler {
 	// Health check
 	r.Get("/health", h.health)
 
+	// Setup wizard — save .env and apply env vars without restart
+	r.Post("/setup", h.handleSetupPost)
+
 	// Config / onboarding
 	r.Get("/config", h.getConfig)
 	r.Post("/config", h.setConfig)
