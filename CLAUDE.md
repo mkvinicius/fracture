@@ -14,7 +14,21 @@ FRACTURE is a local strategic simulation tool. A user asks a strategic question,
 
 ```
 main.go              Entry point: logger, DB, router, HTTP server
-api/handler.go       All REST handlers + simulation runner goroutine
+api/
+  handler.go             Handler struct, NewHandler, Routes, internal helpers
+                         (persistJob, companyID, buildLLMRouter,
+                          domainResultsToSignals, loadFullReport,
+                          writeJSON, writeError)
+  handler_simulations.go Simulation CRUD, SSE stream, runner goroutines,
+                         persistRound, compareSimulations, getSimulationEvents
+  handler_export.go      getReport, exportMarkdown, exportJSON
+  handler_feedback.go    submitFeedback (recalibrates archetypes + RAG index)
+  handler_config.go      health, checkForUpdate, extractContext, getConfig,
+                         setConfig, onboarding, company, validateKey,
+                         getAuditLog, getTelemetry, setTelemetry
+  handler_knowledge.go   Archetypes CRUD + builtins, Rules CRUD + merge,
+                         Templates
+  handler_pulse.go       quickPulse (fast LLM tension check, no simulation)
 engine/
   engine.go          RunSimulation(): rounds loop, tension, voting
   agents.go          56 agents (37 conformist, 19 disruptor), Personality
