@@ -1,8 +1,13 @@
-.PHONY: all build build-dashboard build-go run clean release test
+.PHONY: all build build-dashboard build-go run dev test lint fmt tidy coverage clean release release-snapshot install-goreleaser install-lint help
 
 VERSION ?= dev
 BINARY  := fracture
 GOFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
+
+## help: print this help message
+help:
+	@echo "FRACTURE v2.5.0 — available targets:"
+	@sed -n 's/^## /  /p' $(MAKEFILE_LIST)
 
 ## all: build dashboard + Go binary
 all: build
@@ -33,13 +38,32 @@ dev:
 	  (go run . ) & \
 	  wait
 
-## test: run Go tests
+## test: run Go tests with race detector
 test:
 	go test ./... -v -race -timeout 60s
 
-## clean: remove build artifacts
+## lint: run golangci-lint (install with make install-lint)
+lint:
+	golangci-lint run ./...
+
+## fmt: format all Go source files
+fmt:
+	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
+
+## tidy: tidy and verify Go module dependencies
+tidy:
+	go mod tidy
+	go mod verify
+
+## coverage: run tests and open HTML coverage report
+coverage:
+	go test ./... -coverprofile=coverage.out -covermode=atomic
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "→ Coverage report: coverage.html"
+
+## clean: remove build artefacts and coverage files
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) coverage.out coverage.html
 	rm -rf dashboard/dist
 
 ## release: build release binaries for all platforms via GoReleaser
@@ -53,3 +77,7 @@ release-snapshot:
 ## install-goreleaser: install GoReleaser
 install-goreleaser:
 	go install github.com/goreleaser/goreleaser/v2@latest
+
+## install-lint: install golangci-lint
+install-lint:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
