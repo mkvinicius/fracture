@@ -773,6 +773,51 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		log.Printf("[FRACTURE] Saving raw result for sim %s (no report)", job.ID)
 	}
 
+	// --- JUDGE + EWC fire-and-forget ---
+	go func() {
+		jCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		// round real do primeiro fracture point (0 se não houve)
+		actualFractureRound := 0
+		if len(primaryResult.FractureEvents) > 0 {
+			actualFractureRound = primaryResult.FractureEvents[0].Round
+		}
+
+		// sem fonte de round previsto no relatório — usa o real para creditar
+		// participantes quando um fracture ocorreu (roundAccuracy = 1.0)
+		predictedFractureRound := actualFractureRound
+
+		// monta participação dos agentes
+		participation := make(map[string]bool)
+		for _, rr := range primaryResult.Rounds {
+			for _, action := range rr.Actions {
+				participation[action.AgentID] = true
+			}
+		}
+
+		// constrói e executa julgamento
+		judgement := memory.BuildJudgement(
+			primaryResult.SimulationID,
+			job.Company,
+			predictedFractureRound,
+			actualFractureRound,
+			participation,
+		)
+		if err := h.calibrator.Judge(jCtx, judgement); err != nil {
+			log.Printf("[FRACTURE] judge failed sim=%s: %v", primaryResult.SimulationID, err)
+		}
+
+		// consolida pesos EWC para o setor atual
+		if h.calibrator.EWC != nil {
+			fishers, err := h.calibrator.EWC.ComputeFisherWeights(jCtx, job.Department)
+			if err == nil {
+				_ = h.calibrator.EWC.ConsolidateWeights(jCtx, job.Department, fishers)
+			}
+		}
+	}()
+	// --- fim Judge + EWC ---
+
 	h.simMu.Lock()
 	job.Status = "done"
 	job.DurationMs = durationMs
