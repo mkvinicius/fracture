@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/fracture/fracture/memory"
 )
 
 // CausalTriple representa uma relação causal extraída do DeepSearch.
@@ -88,6 +90,15 @@ Retorne APENAS o JSON, sem texto adicional.`,
 		})
 	}
 	return triples
+}
+
+// PersistFromDeepSearch persiste triplas causais extraídas do DeepSearch.
+// Chama RecordEdge para cada tripla — edges existentes têm strength incrementada.
+func PersistFromDeepSearch(cg *memory.CausalityGraph, sector string, triples []CausalTriple) {
+	for _, t := range triples {
+		key := sector + "::" + t.Domain
+		cg.RecordEdge(key, t.Cause, t.Effect) //nolint:errcheck — falha silenciosa
+	}
 }
 
 // extractJSONArray extrai o primeiro array JSON de uma string.

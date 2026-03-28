@@ -196,6 +196,31 @@ func (cg *CausalityGraph) RecordCausality(companyID, decisionDesc, outcomeDesc s
 	return err
 }
 
+// RecordEdge inserts or increments a cause→effect edge, keyed by namespace.
+// Used by DeepSearch causality ingestion; namespace is typically "sector::domain".
+func (cg *CausalityGraph) RecordEdge(namespace, cause, effect string) error {
+	causeID := hashString(namespace + "|cause|" + cause)
+	cg.db.Exec(`
+		INSERT OR IGNORE INTO causality_nodes (id, company_id, description, node_type, created_at)
+		VALUES (?, ?, ?, 'cause', unixepoch())
+	`, causeID, namespace, cause)
+
+	effectID := hashString(namespace + "|effect|" + effect)
+	cg.db.Exec(`
+		INSERT OR IGNORE INTO causality_nodes (id, company_id, description, node_type, created_at)
+		VALUES (?, ?, ?, 'effect', unixepoch())
+	`, effectID, namespace, effect)
+
+	_, err := cg.db.Exec(`
+		INSERT INTO causality_edges (from_node, to_node, strength, evidence)
+		VALUES (?, ?, 0.5, 1)
+		ON CONFLICT(from_node, to_node) DO UPDATE SET
+			evidence = evidence + 1,
+			strength = MIN(1.0, strength + 0.05)
+	`, causeID, effectID)
+	return err
+}
+
 // CausalPath represents a learned decision → outcome relationship.
 type CausalPath struct {
 	Decision string  `json:"decision"`
