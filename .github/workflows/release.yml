@@ -52,6 +52,19 @@ jobs:
           cp README.md LICENSE INSTALL.md installer/
           cd installer && makensis windows.nsi
 
+      - name: Build launcher Windows
+        run: |
+          cd launcher
+          go mod tidy
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+            go build -ldflags="-H windowsgui" -o FRACTURE-Launcher-Windows.exe .
+
+      - name: Build launcher macOS
+        run: |
+          cd launcher
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 \
+            go build -o FRACTURE-Launcher-macOS .
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -60,9 +73,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installer to release
+      - name: Upload installer and launchers to release
         uses: softprops/action-gh-release@v2
         with:
-          files: installer/FRACTURE-Setup.exe
+          files: |
+            installer/FRACTURE-Setup.exe
+            launcher/FRACTURE-Launcher-Windows.exe
+            launcher/FRACTURE-Launcher-macOS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
