@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/fracture/fracture/updater"
+	"golang.org/x/sync/errgroup"
 )
 
 // ReportGenerator produces the three FRACTURE result types from a completed simulation.
@@ -55,34 +55,33 @@ func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *Simulatio
 	}
 
 	pr := parallelResults{}
-	var wg sync.WaitGroup
-	wg.Add(3)
+	eg, egCtx := errgroup.WithContext(ctx)
 
-	go func() {
-		defer wg.Done()
-		c, err := rg.generateCoalitions(ctx, question, summary)
+	eg.Go(func() error {
+		c, err := rg.generateCoalitions(egCtx, question, summary)
 		if err == nil {
 			pr.coalitions = c
 		}
-	}()
+		return nil // não-fatal
+	})
 
-	go func() {
-		defer wg.Done()
-		t, err := rg.generateRuptureTimeline(ctx, question, summary, ruptureScenarios)
+	eg.Go(func() error {
+		t, err := rg.generateRuptureTimeline(egCtx, question, summary, ruptureScenarios)
 		if err == nil {
 			pr.ruptureTimeline = t
 		}
-	}()
+		return nil // não-fatal
+	})
 
-	go func() {
-		defer wg.Done()
-		p, err := rg.generateActionPlaybook(ctx, question, summary, ruptureScenarios)
+	eg.Go(func() error {
+		p, err := rg.generateActionPlaybook(egCtx, question, summary, ruptureScenarios)
 		if err == nil {
 			pr.actionPlaybook = p
 		}
-	}()
+		return nil // não-fatal
+	})
 
-	wg.Wait()
+	eg.Wait() //nolint:errcheck — all goroutines return nil
 	// --- fim das seções paralelas ---
 
 	return &FullReport{
