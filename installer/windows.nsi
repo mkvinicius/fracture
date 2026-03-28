@@ -124,7 +124,7 @@ Section "FRACTURE" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FRACTURE" \
     "Publisher" "FRACTURE"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FRACTURE" \
-    "DisplayVersion" "2.5.0"
+    "DisplayVersion" "2.6.0"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\FRACTURE" \
     "URLInfoAbout" "https://github.com/mkvinicius/fracture"
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
