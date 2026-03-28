@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -145,6 +146,21 @@ func (s *Store) SaveRound(simulationID string, round int, action engine.AgentAct
 		action.TokensUsed,
 		time.Now().Unix(),
 	)
+
+	// grava em agent_memory com embedding (fallback silencioso se falhar)
+	db := s.db
+	agentID, content := action.AgentID, action.Text
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		emb, _ := embedText(ctx, content)
+		blob := embeddingToBlob(emb)
+		db.ExecContext(ctx,
+			`INSERT INTO agent_memory (agent_id, content, embedding) VALUES (?, ?, ?)`,
+			agentID, content, blob,
+		)
+	}()
+
 	return err
 }
 
