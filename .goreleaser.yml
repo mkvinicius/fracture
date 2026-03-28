@@ -42,6 +42,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - INSTALL.md
 
 checksum:
   name_template: "fracture_{{ .Version }}_checksums.txt"
