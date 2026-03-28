@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fracture/fracture/updater"
@@ -46,21 +47,43 @@ func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *Simulatio
 		return nil, fmt.Errorf("rupture scenarios: %w", err)
 	}
 
-	coalitions, err := rg.generateCoalitions(ctx, question, summary)
-	if err != nil {
-		// Non-fatal: coalitions are bonus output
-		coalitions = nil
+	// --- seções não-fatais em paralelo ---
+	type parallelResults struct {
+		coalitions      []Coalition
+		ruptureTimeline []RuptureTimelineEvent
+		actionPlaybook  *ActionPlaybook
 	}
 
-	ruptureTimeline, err := rg.generateRuptureTimeline(ctx, question, summary, ruptureScenarios)
-	if err != nil {
-		ruptureTimeline = nil
-	}
+	pr := parallelResults{}
+	var wg sync.WaitGroup
+	wg.Add(3)
 
-	playbook, err := rg.generateActionPlaybook(ctx, question, summary, ruptureScenarios)
-	if err != nil {
-		playbook = nil
-	}
+	go func() {
+		defer wg.Done()
+		c, err := rg.generateCoalitions(ctx, question, summary)
+		if err == nil {
+			pr.coalitions = c
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		t, err := rg.generateRuptureTimeline(ctx, question, summary, ruptureScenarios)
+		if err == nil {
+			pr.ruptureTimeline = t
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		p, err := rg.generateActionPlaybook(ctx, question, summary, ruptureScenarios)
+		if err == nil {
+			pr.actionPlaybook = p
+		}
+	}()
+
+	wg.Wait()
+	// --- fim das seções paralelas ---
 
 	return &FullReport{
 		SimulationID:     result.SimulationID,
@@ -68,9 +91,9 @@ func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *Simulatio
 		ProbableFuture:   probableFuture,
 		TensionMap:       tensionMap,
 		RuptureScenarios: ruptureScenarios,
-		Coalitions:       coalitions,
-		RuptureTimeline:  ruptureTimeline,
-		ActionPlaybook:   playbook,
+		Coalitions:       pr.coalitions,
+		RuptureTimeline:  pr.ruptureTimeline,
+		ActionPlaybook:   pr.actionPlaybook,
 		FractureEvents:   result.FractureEvents,
 		TotalTokens:      result.TotalTokens,
 		DurationMs:       result.DurationMs,
