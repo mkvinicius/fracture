@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"math"
@@ -27,11 +28,16 @@ type ArchetypeCalibration struct {
 type Calibrator struct {
 	db    *sql.DB
 	Graph *CausalityGraph
+	EWC   *EWC
 }
 
 // NewCalibrator creates a Calibrator backed by the given SQLite DB.
 func NewCalibrator(db *sql.DB) *Calibrator {
-	return &Calibrator{db: db, Graph: NewCausalityGraph(db)}
+	return &Calibrator{
+		db:    db,
+		Graph: NewCausalityGraph(db),
+		EWC:   NewEWC(db, 0.4), // alpha 0.4 = proteção moderada
+	}
 }
 
 // RecordFeedback updates archetype calibration based on real-world outcome.
@@ -159,6 +165,16 @@ func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibrat
 		return nil, fmt.Errorf("get calibration report: %w", err)
 	}
 	return calibrations, nil
+}
+
+// ConsolidateAcrossSectors transfers calibration knowledge from one domain to another
+// using EWC protection — well-established weights anchor the target domain's starting point.
+func (c *Calibrator) ConsolidateAcrossSectors(ctx context.Context, sourceDomain, targetDomain string) error {
+	fishers, err := c.EWC.ComputeFisherWeights(ctx, sourceDomain)
+	if err != nil {
+		return err
+	}
+	return c.EWC.ConsolidateWeights(ctx, targetDomain, fishers)
 }
 
 // ─── Causality graph ──────────────────────────────────────────────────────────
