@@ -25,12 +25,13 @@ type ArchetypeCalibration struct {
 
 // Calibrator adjusts archetype weights based on real-world feedback.
 type Calibrator struct {
-	db *sql.DB
+	db    *sql.DB
+	Graph *CausalityGraph
 }
 
 // NewCalibrator creates a Calibrator backed by the given SQLite DB.
 func NewCalibrator(db *sql.DB) *Calibrator {
-	return &Calibrator{db: db}
+	return &Calibrator{db: db, Graph: NewCausalityGraph(db)}
 }
 
 // RecordFeedback updates archetype calibration based on real-world outcome.

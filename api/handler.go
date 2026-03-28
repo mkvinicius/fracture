@@ -541,6 +541,17 @@ func (h *Handler) runWithDeepSearch(job *simJob, manualContext string) {
 		log.Printf("[FRACTURE] DeepSearch completed for sim %s: %d sources, %d tokens",
 			job.ID, len(contextReport.Sources), contextReport.TokensUsed)
 
+		// persiste causalidades no grafo — fire and forget, não bloqueia
+		if h.calibrator != nil {
+			synthLLM := router.ForRole(llm.RoleSynthesis)
+			cr := contextReport
+			sector := job.Department
+			go func() {
+				triples := deepsearch.ExtractCausalities(context.Background(), synthLLM, cr, sector)
+				deepsearch.PersistFromDeepSearch(h.calibrator.Graph, sector, triples)
+			}()
+		}
+
 		// Synthesize domain contexts and persist them
 		domainContexts := dsAgent.SynthesizeDomainContext(contextReport)
 		for domain, ctx := range domainContexts {
