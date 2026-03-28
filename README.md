@@ -162,7 +162,7 @@ git clone https://github.com/mkvinicius/fracture
 cd fracture
 
 # Build dashboard
-cd dashboard && npm install && npm run build && cd ..
+cd dashboard && pnpm install && pnpm build && cd ..
 
 # Build binary
 go build -o fracture .
