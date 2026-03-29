@@ -61,13 +61,74 @@ func (s *Store) RecentActions(agentID string, n int) []engine.AgentAction {
 }
 
 // SimilarContexts returns N stored action texts most semantically similar to query.
-// Uses keyword overlap scoring (no external vector DB required).
+// Tries embedding-based search first; falls back to keyword overlap.
 func (s *Store) SimilarContexts(query string, n int) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// tenta busca semântica com embeddings
+	queryEmb, err := embedText(ctx, query)
+	if err == nil && queryEmb != nil {
+		results := s.similarByEmbedding(queryEmb, n)
+		if len(results) > 0 {
+			return results
+		}
+	}
+	// fallback: keyword overlap original
+	return s.similarByKeyword(query, n)
+}
+
+func (s *Store) similarByEmbedding(queryEmb []float32, n int) []string {
+	rows, err := s.db.Query(`
+		SELECT content, embedding FROM agent_memory
+		WHERE embedding IS NOT NULL
+		ORDER BY created_at DESC
+		LIMIT 500
+	`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	type scored struct {
+		text  string
+		score float64
+	}
+	var results []scored
+
+	for rows.Next() {
+		var content string
+		var blob []byte
+		if err := rows.Scan(&content, &blob); err != nil {
+			continue
+		}
+		emb := blobToEmbedding(blob)
+		score := cosineSimF32(queryEmb, emb)
+		if score > 0.5 { // só retorna contextos realmente similares
+			results = append(results, scored{content, score})
+		}
+	}
+
+	// insertion sort por score descendente
+	for i := 1; i < len(results); i++ {
+		for j := i; j > 0 && results[j].score > results[j-1].score; j-- {
+			results[j], results[j-1] = results[j-1], results[j]
+		}
+	}
+
+	out := make([]string, 0, n)
+	for i := 0; i < n && i < len(results); i++ {
+		out = append(out, results[i].text)
+	}
+	return out
+}
+
+func (s *Store) similarByKeyword(query string, n int) []string {
 	rows, err := s.db.Query(`
 		SELECT action_text FROM simulation_rounds
 		ORDER BY created_at DESC
 		LIMIT ?
-	`, n*5) // over-fetch then filter
+	`, n*5)
 	if err != nil {
 		return nil
 	}
@@ -81,42 +142,33 @@ func (s *Store) SimilarContexts(query string, n int) []string {
 		}
 		candidates = append(candidates, text)
 	}
-	if rows.Err() != nil {
-		return nil
-	}
 
-	// Simple keyword overlap scoring
 	queryWords := tokenize(query)
 	type scored struct {
 		text  string
 		score int
 	}
-	var scored_ []scored
+	var results []scored
 	for _, c := range candidates {
 		cWords := tokenize(c)
-		score := overlap(queryWords, cWords)
-		if score > 0 {
-			scored_ = append(scored_, scored{c, score})
+		sc := overlap(queryWords, cWords)
+		if sc > 0 {
+			results = append(results, scored{c, sc})
 		}
 	}
 
-	// Sort by score descending
-	for i := 0; i < len(scored_); i++ {
-		for j := i + 1; j < len(scored_); j++ {
-			if scored_[j].score > scored_[i].score {
-				scored_[i], scored_[j] = scored_[j], scored_[i]
-			}
+	// insertion sort por score descendente
+	for i := 1; i < len(results); i++ {
+		for j := i; j > 0 && results[j].score > results[j-1].score; j-- {
+			results[j], results[j-1] = results[j-1], results[j]
 		}
 	}
 
-	result := make([]string, 0, n)
-	for i, s := range scored_ {
-		if i >= n {
-			break
-		}
-		result = append(result, s.text)
+	out := make([]string, 0, n)
+	for i := 0; i < n && i < len(results); i++ {
+		out = append(out, results[i].text)
 	}
-	return result
+	return out
 }
 
 // SaveRound persists a simulation round to the database.
