@@ -104,10 +104,8 @@ func main() {
 			req.URL.Path = "/"
 			path = ""
 		}
-		// Prevent caching of index.html so browser always gets fresh asset references
-		if path == "" || path == "index.html" {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		}
+		// No caching for local app — always serve fresh
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		fileServer.ServeHTTP(w, req)
 	}))
 
