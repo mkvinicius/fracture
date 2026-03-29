@@ -106,6 +106,10 @@ func main() {
 		}
 		// No caching for local app — always serve fresh
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		// Force browser to clear its cache for this origin on every index.html load
+		if path == "" || path == "index.html" {
+			w.Header().Set("Clear-Site-Data", `"cache"`)
+		}
 		fileServer.ServeHTTP(w, req)
 	}))
 
