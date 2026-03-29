@@ -95,8 +95,17 @@ func main() {
 		path := req.URL.Path[1:]
 		_, statErr := fs.Stat(dashSub, path)
 		if os.IsNotExist(statErr) {
-			// Assets (JS/CSS) that don't exist → 404, not SPA fallback
 			if strings.HasPrefix(req.URL.Path, "/assets/") {
+				// Redirect any old hashed JS/CSS bundle to the current fixed-name file
+				// e.g. /assets/index-DKsY0a-L.js → /assets/index.js
+				if strings.HasSuffix(req.URL.Path, ".js") {
+					http.Redirect(w, req, "/assets/index.js", http.StatusFound)
+					return
+				}
+				if strings.HasSuffix(req.URL.Path, ".css") {
+					http.Redirect(w, req, "/assets/index.css", http.StatusFound)
+					return
+				}
 				http.NotFound(w, req)
 				return
 			}
