@@ -1240,34 +1240,41 @@ func (h *Handler) getTemplate(w http.ResponseWriter, r *http.Request) {
 // ─── Archetypes ──────────────────────────────────────────────────────────────
 
 // builtinArchetypes returns the hardcoded built-in archetype list as ArchetypeRow slices.
-// These are never stored in the DB; they are merged with custom archetypes at query time.
+// builtinArchetypes builds the display list from the real 56 simulation agents
+// (37 conformists + 19 disruptors) so the UI always reflects what the engine uses.
 func builtinArchetypes() []db.ArchetypeRow {
-	type meta struct {
-		id, name, agentType, description string
-		weight                           float64
-	}
-	list := []meta{
-		{"pragmatist", "The Pragmatist", "conformist", "Mid-level manager: data-driven, risk-averse, process-oriented", 0.7},
-		{"loyalist", "The Loyalist", "conformist", "Long-term customer: brand-loyal, resistant to change, word-of-mouth", 0.6},
-		{"analyst", "The Analyst", "conformist", "Industry analyst: evidence-based, conservative, benchmark-focused", 0.8},
-		{"opportunist", "The Opportunist", "conformist", "Competitor executive: market-watching, fast-follower, profit-driven", 0.75},
-		{"traditionalist", "The Traditionalist", "conformist", "Regulator / policy maker: rule-enforcing, slow-moving, stability-focused", 0.65},
-		{"regulator", "The Regulator", "conformist", "Compliance officer: risk-averse, rule-based, conservative", 0.7},
-		{"consumer", "The Consumer", "conformist", "End user / customer: value-seeking, convenience-driven, price-sensitive", 0.55},
-		{"investor", "The Investor", "conformist", "Institutional investor: ROI-focused, long-term, risk-calibrated", 0.85},
-		{"visionary", "The Visionary", "disruptor", "Startup founder: contrarian, first-principles, high-risk tolerance", 0.9},
-		{"rebel", "The Rebel", "disruptor", "Activist / whistleblower: anti-establishment, viral, unpredictable", 0.7},
-		{"tech-accelerator", "The Tech Accelerator", "disruptor", "AI/tech researcher: exponential thinking, automation-first, impatient", 0.85},
-		{"arbitrageur", "The Arbitrageur", "disruptor", "Financial disruptor: gap-finder, speed-focused, asymmetric bets", 0.8},
-	}
-	out := make([]db.ArchetypeRow, 0, len(list))
-	for _, m := range list {
+	agents := append(
+		archetypes.BuiltinConformists(nil),
+		archetypes.BuiltinDisruptors(nil)...,
+	)
+	out := make([]db.ArchetypeRow, 0, len(agents))
+	for _, a := range agents {
+		p := a.Personality()
+		agentType := "conformist"
+		if a.Type() == engine.AgentDisruptor {
+			agentType = "disruptor"
+		}
+		desc := p.Role
+		if len(p.Traits) > 0 {
+			desc = p.Role + ": " + strings.Join(p.Traits[:min(3, len(p.Traits))], ", ")
+		}
 		out = append(out, db.ArchetypeRow{
-			ID: m.id, Name: m.name, AgentType: m.agentType,
-			Description: m.description, MemoryWeight: m.weight, IsActive: true,
+			ID:           a.ID(),
+			Name:         p.Name,
+			AgentType:    agentType,
+			Description:  desc,
+			MemoryWeight: p.PowerWeight,
+			IsActive:     true,
 		})
 	}
 	return out
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (h *Handler) listArchetypes(w http.ResponseWriter, r *http.Request) {
