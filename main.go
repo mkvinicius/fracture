@@ -93,9 +93,15 @@ func main() {
 	fileServer := http.FileServer(http.FS(dashSub))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// SPA fallback: serve index.html for unknown routes
-		_, statErr := fs.Stat(dashSub, req.URL.Path[1:])
+		path := req.URL.Path[1:]
+		_, statErr := fs.Stat(dashSub, path)
 		if os.IsNotExist(statErr) {
 			req.URL.Path = "/"
+			path = ""
+		}
+		// Prevent caching of index.html so browser always gets fresh asset references
+		if path == "" || path == "index.html" {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		}
 		fileServer.ServeHTTP(w, req)
 	}))
