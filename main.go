@@ -92,10 +92,15 @@ func main() {
 	}
 	fileServer := http.FileServer(http.FS(dashSub))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// SPA fallback: serve index.html for unknown routes
 		path := req.URL.Path[1:]
 		_, statErr := fs.Stat(dashSub, path)
 		if os.IsNotExist(statErr) {
+			// Assets (JS/CSS) that don't exist → 404, not SPA fallback
+			if strings.HasPrefix(req.URL.Path, "/assets/") {
+				http.NotFound(w, req)
+				return
+			}
+			// SPA routes → serve index.html
 			req.URL.Path = "/"
 			path = ""
 		}
