@@ -92,22 +92,22 @@ func main() {
 	}
 	fileServer := http.FileServer(http.FS(dashSub))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// Always redirect old content-hashed bundles to the current fixed-name files.
-		// This must run BEFORE the fs.Stat check because go:embed may have
-		// embedded a stale hashed file from the developer's local dist folder.
+		// Redirect any request to the old /assets/ path (cached by browsers) to /bundle/.
+		// Also redirect old content-hashed filenames (e.g. index-DKsY0a-L.js) to the
+		// current fixed-name files. These checks run BEFORE fs.Stat so they fire even
+		// when the stale file exists in the embedded FS.
 		if strings.HasPrefix(req.URL.Path, "/assets/") {
 			base := req.URL.Path[len("/assets/"):]
-			// Hashed pattern: name-XXXXXXXX.js or name-XXXXXXXX.css (Vite default)
-			if isHashedAsset(base) {
-				if strings.HasSuffix(base, ".js") {
-					http.Redirect(w, req, "/assets/index.js", http.StatusFound)
-					return
-				}
-				if strings.HasSuffix(base, ".css") {
-					http.Redirect(w, req, "/assets/index.css", http.StatusFound)
-					return
-				}
+			if strings.HasSuffix(base, ".js") {
+				http.Redirect(w, req, "/bundle/index.js", http.StatusFound)
+				return
 			}
+			if strings.HasSuffix(base, ".css") {
+				http.Redirect(w, req, "/bundle/index.css", http.StatusFound)
+				return
+			}
+			http.NotFound(w, req)
+			return
 		}
 
 		path := req.URL.Path[1:]

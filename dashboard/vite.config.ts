@@ -18,11 +18,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    assetsDir: 'bundle',
     rollupOptions: {
       output: {
-        entryFileNames: 'assets/index.js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name][extname]',
+        entryFileNames: 'bundle/index.js',
+        chunkFileNames: 'bundle/[name].js',
+        assetFileNames: 'bundle/[name][extname]',
       },
     },
   }
