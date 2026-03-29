@@ -79,7 +79,7 @@ function App() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch('/api/update-check')
+        const res = await fetch('/api/v1/update-check')
         if (res.ok) {
           const data: UpdateInfo = await res.json()
           if (data.has_update) setUpdateInfo(data)

@@ -71,7 +71,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
     setExtracting(true)
     setExtractedSummary('')
     try {
-      const res = await fetch('/api/extract-context', {
+      const res = await fetch('/api/v1/extract-context', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls })
@@ -95,7 +95,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
     setError('')
     const urls = urlEntries.map(u => u.value).filter(v => v.trim() !== '')
     try {
-      const res = await fetch('/api/simulations', {
+      const res = await fetch('/api/v1/simulations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, department, rounds, context, urls })
@@ -105,7 +105,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
         // Poll for status to show research → running transition
         const poll = setInterval(async () => {
           try {
-            const sr = await fetch(`/api/simulations/${data.id}`)
+            const sr = await fetch(`/api/v1/simulations/${data.id}`)
             const sd = await sr.json()
             if (sd.research_sources) setResearchSources(sd.research_sources)
             if (sd.status === 'running') setSimPhase('running')

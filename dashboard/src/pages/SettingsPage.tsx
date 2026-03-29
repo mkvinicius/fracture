@@ -15,15 +15,15 @@ export default function SettingsPage() {
   const [telemetrySaving, setTelemetrySaving] = useState(false)
 
   useEffect(() => {
-    fetch('/api/config').then(r => r.json()).then(setConfig).catch(() => {})
-    fetch('/api/telemetry').then(r => r.json()).then((d: { enabled: boolean }) => setTelemetryEnabled(d.enabled)).catch(() => setTelemetryEnabled(true))
+    fetch('/api/v1/config').then(r => r.json()).then(setConfig).catch(() => {})
+    fetch('/api/v1/telemetry').then(r => r.json()).then((d: { enabled: boolean }) => setTelemetryEnabled(d.enabled)).catch(() => setTelemetryEnabled(true))
   }, [])
 
   async function saveKey(provider: string) {
     const key = keys[provider]
     if (!key?.trim()) return
     setSaving(true)
-    await fetch('/api/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
+    await fetch('/api/v1/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -35,7 +35,7 @@ export default function SettingsPage() {
     setTelemetryEnabled(next)
     setTelemetrySaving(true)
     try {
-      await fetch('/api/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }) })
+      await fetch('/api/v1/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }) })
     } catch { /* ignore */ }
     setTelemetrySaving(false)
   }
