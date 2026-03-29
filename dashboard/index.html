@@ -8,6 +8,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Bust any stale service worker cache from extensions (e.g. MetaMask) that may
+         serve old hashed bundles. Detects hashed filenames and forces SW cache clear + reload. -->
+    <script>
+      (function() {
+        var scripts = document.querySelectorAll('script[src]');
+        for (var i = 0; i < scripts.length; i++) {
+          var src = scripts[i].getAttribute('src') || '';
+          // Old bundles have a hash in the filename: index-XXXXXXXX.js
+          if (/\/assets\/index-[^/]+\.js$/.test(src)) {
+            // Clear all service worker caches and reload once
+            if ('caches' in window && !sessionStorage.getItem('_sw_busted')) {
+              sessionStorage.setItem('_sw_busted', '1');
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+              }).then(function() {
+                window.location.replace(window.location.href.split('?')[0] + '?_bust=' + Date.now());
+              });
+            }
+            break;
+          }
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
