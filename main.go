@@ -90,43 +90,47 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to sub dashboard FS")
 	}
-	fileServer := http.FileServer(http.FS(dashSub))
-	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// Redirect any request to the old /assets/ path (cached by browsers) to /bundle/.
-		// Also redirect old content-hashed filenames (e.g. index-DKsY0a-L.js) to the
-		// current fixed-name files. These checks run BEFORE fs.Stat so they fire even
-		// when the stale file exists in the embedded FS.
-		if strings.HasPrefix(req.URL.Path, "/assets/") {
-			base := req.URL.Path[len("/assets/"):]
-			if strings.HasSuffix(base, ".js") {
-				http.Redirect(w, req, "/bundle/index.js", http.StatusFound)
-				return
-			}
-			if strings.HasSuffix(base, ".css") {
-				http.Redirect(w, req, "/bundle/index.css", http.StatusFound)
-				return
-			}
-			http.NotFound(w, req)
-			return
-		}
 
-		path := req.URL.Path[1:]
-		_, statErr := fs.Stat(dashSub, path)
-		if os.IsNotExist(statErr) {
-			// SPA routes → serve index.html
-			req.URL.Path = "/"
-			path = ""
-		}
-		// No caching for local app — always serve fresh
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		if path == "" || path == "index.html" {
-			w.Header().Set("Clear-Site-Data", `"cache"`)
-		}
-		fileServer.ServeHTTP(w, req)
+	// Read index.html once at startup — serve it directly (never via FileServer)
+	// so we control headers and guarantee no browser caching.
+	indexHTMLBytes, err := fs.ReadFile(dashSub, "index.html")
+	if err != nil {
+		log.Fatal().Err(err).Msg("dashboard/dist/index.html not found — run: cd dashboard && pnpm build")
+	}
+	indexHTML := indexHTMLBytes
+
+	// Serve raw static assets (JS, CSS, icons) from the embedded FS.
+	// Redirect any old /assets/ paths to /bundle/ (handles browsers that cached the old URL).
+	assetServer := http.FileServer(http.FS(dashSub))
+	r.Handle("/bundle/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Assets are content-addressed (fixed names, immutable content per build).
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		assetServer.ServeHTTP(w, req)
+	}))
+	r.Handle("/favicon.svg", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		assetServer.ServeHTTP(w, req)
+	}))
+	r.Handle("/icons.svg", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		assetServer.ServeHTTP(w, req)
 	}))
 
+	// All other routes (including old /assets/ paths) → serve index.html directly.
+	// index.html is always fresh: no-store prevents any caching whatsoever.
+	serveIndex := func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("Clear-Site-Data", `"cache"`)
+		w.WriteHeader(http.StatusOK)
+		w.Write(indexHTML)
+	}
+	r.Handle("/*", http.HandlerFunc(serveIndex))
+
 	// ── Find available port ──────────────────────────────────────────────────
-	port := findAvailablePort(3000)
+	port := findAvailablePort(4000)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
 	// ── HTTP Server ──────────────────────────────────────────────────────────
