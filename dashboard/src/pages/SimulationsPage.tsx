@@ -9,7 +9,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d ?? []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   const statusColor = (s: string) => s === 'complete' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'failed' ? 'var(--color-danger)' : 'var(--color-warning)'

@@ -22,7 +22,7 @@ export default function ConvergencePage({ simId, onNavigate }: { simId: string; 
   useEffect(() => {
     fetch(`/api/v1/simulations/${simId}/events`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
-      .then((d: TensionPoint[]) => { setPoints(d); setLoading(false) })
+      .then((d: TensionPoint[]) => { setPoints(d ?? []); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [simId])
 

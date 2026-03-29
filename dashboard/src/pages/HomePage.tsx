@@ -8,7 +8,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
   const [company, setCompany] = useState<{ name: string; sector: string } | null>(null)
 
   useEffect(() => {
-    fetch('/api/v1/simulations').then(r => r.json()).then(setSims).catch(() => {})
+    fetch('/api/v1/simulations').then(r => r.json()).then(d => setSims(d ?? [])).catch(() => {})
     fetch('/api/v1/company').then(r => r.json()).then(setCompany).catch(() => {})
   }, [])
 
