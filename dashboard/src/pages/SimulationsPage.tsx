@@ -27,8 +27,8 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
     <div style={{ padding: '32px', maxWidth: '960px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Simulation History</h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>All past and running simulations</p>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Histórico de Simulações</h1>
+          <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>Todas as simulações passadas e em andamento</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {canCompare && (
@@ -39,7 +39,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
               Comparar Selecionadas ({selectedArr.length})
             </button>
           )}
-          <button onClick={() => onNavigate('new-simulation')} style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: 'var(--color-accent)', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>+ New</button>
+          <button onClick={() => onNavigate('new-simulation')} style={{ padding: '9px 18px', borderRadius: '8px', border: 'none', background: 'var(--color-accent)', color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>+ Nova</button>
         </div>
       </div>
 

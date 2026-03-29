@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { type Page } from '../App'
 
 const TEMPLATES = [
-  { id: 'competitor-free', label: 'Competitor goes free', question: 'If our main competitor offered their core product for free tomorrow, how would the market react in 12 months?' },
-  { id: 'new-entrant',     label: 'Big tech enters market', question: 'If a major tech company (Google, Apple, or Amazon) entered our market with unlimited resources, which rules would break first?' },
-  { id: 'regulation',      label: 'Regulatory disruption', question: 'If a new regulation forced us to change our core business model, what would the market look like in 18 months?' },
-  { id: 'custom',          label: 'Custom question', question: '' },
+  { id: 'competitor-free', label: 'Concorrente vai de graça', question: 'Se nosso principal concorrente oferecesse seu produto principal gratuitamente amanhã, como o mercado reagiria em 12 meses?' },
+  { id: 'new-entrant',     label: 'Big tech entra no mercado', question: 'Se uma grande empresa de tecnologia (Google, Apple ou Amazon) entrasse em nosso mercado com recursos ilimitados, quais regras quebrariam primeiro?' },
+  { id: 'regulation',      label: 'Disrupção regulatória', question: 'Se uma nova regulação nos forçasse a mudar nosso modelo de negócios principal, como seria o mercado em 18 meses?' },
+  { id: 'custom',          label: 'Pergunta personalizada', question: '' },
 ]
 
 const DEPARTMENTS = ['Marketing', 'HR', 'Finance', 'Product', 'Sales', 'Operations', 'Strategy']
@@ -116,12 +116,12 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
           } catch { clearInterval(poll); onNavigate('simulations') }
         }, 2000)
       } else {
-        setError(data.error || 'Failed to start simulation')
+        setError(data.error || 'Falha ao iniciar a simulação')
         setRunning(false)
         setSimPhase('idle')
       }
     } catch {
-      setError('Could not connect to FRACTURE engine. Make sure the server is running.')
+      setError('Não foi possível conectar ao motor FRACTURE. Verifique se o servidor está em execução.')
       setRunning(false)
       setSimPhase('idle')
     }
@@ -136,13 +136,13 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
   return (
     <div style={{ padding: '32px', maxWidth: '720px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>New Simulation</h1>
-        <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>Define your strategic question. FRACTURE will simulate how the market responds.</p>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Nova Simulação</h1>
+        <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>Defina sua pergunta estratégica. FRACTURE simulará como o mercado responde.</p>
       </div>
 
       {/* Templates */}
       <div style={{ marginBottom: '24px' }}>
-        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '10px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Quick Templates</label>
+        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '10px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Modelos Rápidos</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
           {TEMPLATES.map(t => (
             <button key={t.id} onClick={() => { setTemplate(t); if (t.question) setQuestion(t.question) }}
@@ -155,22 +155,22 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
 
       {/* Question */}
       <div style={{ marginBottom: '20px' }}>
-        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Strategic Question *</label>
-        <textarea style={{ ...Input, height: '100px', resize: 'vertical' }} value={question} onChange={e => setQuestion(e.target.value)} placeholder="What strategic question do you want to simulate?" />
+        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Pergunta Estratégica *</label>
+        <textarea style={{ ...Input, height: '100px', resize: 'vertical' }} value={question} onChange={e => setQuestion(e.target.value)} placeholder="Qual pergunta estratégica você quer simular?" />
       </div>
 
       {/* Department + Rounds */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div>
-          <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Department</label>
+          <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Departamento</label>
           <select style={{ ...Input }} value={department} onChange={e => setDepartment(e.target.value)}>
             {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
         <div>
-          <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Simulation Rounds</label>
+          <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Rodadas da Simulação</label>
           <select style={{ ...Input }} value={rounds} onChange={e => setRounds(Number(e.target.value))}>
-            {ROUNDS.map(r => <option key={r} value={r}>{r} rounds (~{Math.round(r * 1.5)}s)</option>)}
+            {ROUNDS.map(r => <option key={r} value={r}>{r} rodadas (~{Math.round(r * 1.5)}s)</option>)}
           </select>
         </div>
       </div>
@@ -181,14 +181,14 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
           onClick={() => setShowUrlSection(!showUrlSection)}
           style={{ width: '100%', padding: '12px 16px', background: 'var(--color-surface-2)', border: 'none', color: 'var(--color-text)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left' as const }}
         >
-          <span>🔗 Company Context — Website & Social Media <span style={{ color: 'var(--color-text-muted)', fontWeight: '400' }}>(optional, improves simulation accuracy)</span></span>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{showUrlSection ? '▲ hide' : '▼ expand'}</span>
+          <span>🔗 Contexto da Empresa — Site & Redes Sociais <span style={{ color: 'var(--color-text-muted)', fontWeight: '400' }}>(opcional, melhora a precisão da simulação)</span></span>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>{showUrlSection ? '▲ ocultar' : '▼ expandir'}</span>
         </button>
 
         {showUrlSection && (
           <div style={{ padding: '16px', borderTop: '1px solid var(--color-border)' }}>
             <p style={{ margin: '0 0 14px', fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-              Add your company's website and social media profiles. FRACTURE will automatically extract public information to make the simulation more accurate and personalized.
+              Adicione o site e perfis de redes sociais da sua empresa. FRACTURE extrairá automaticamente informações públicas para tornar a simulação mais precisa e personalizada.
             </p>
 
             {urlEntries.map((entry, idx) => (
@@ -218,7 +218,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
             <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
               {urlEntries.length < 10 && (
                 <button onClick={addUrlEntry} style={{ padding: '8px 14px', borderRadius: '6px', border: '1px dashed var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer' }}>
-                  + Add another URL
+                  + Adicionar outra URL
                 </button>
               )}
               <button
@@ -226,7 +226,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
                 disabled={extracting || urlEntries.every(u => !u.value.trim())}
                 style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--color-accent)', background: 'oklch(0.65 0.22 30 / 0.1)', color: 'var(--color-accent)', fontSize: '12px', fontWeight: '600', cursor: extracting ? 'not-allowed' : 'pointer' }}
               >
-                {extracting ? '⟳ Extracting...' : '⚡ Preview extracted context'}
+                {extracting ? '⟳ Extraindo...' : '⚡ Visualizar contexto extraído'}
               </button>
             </div>
 
@@ -241,8 +241,8 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
 
       {/* Additional Context */}
       <div style={{ marginBottom: '28px' }}>
-        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Additional Context (optional)</label>
-        <textarea style={{ ...Input, height: '80px', resize: 'vertical' }} value={context} onChange={e => setContext(e.target.value)} placeholder="Paste relevant news, competitor info, or market data to enrich the simulation..." />
+        <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '8px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Contexto Adicional (opcional)</label>
+        <textarea style={{ ...Input, height: '80px', resize: 'vertical' }} value={context} onChange={e => setContext(e.target.value)} placeholder="Cole notícias relevantes, informações de concorrentes ou dados de mercado para enriquecer a simulação..." />
       </div>
 
       {error && <div style={{ color: 'var(--color-danger)', fontSize: '13px', marginBottom: '16px', padding: '12px', borderRadius: '8px', background: 'oklch(0.60 0.22 25 / 0.1)', border: '1px solid oklch(0.60 0.22 25 / 0.3)' }}>{error}</div>}
@@ -253,22 +253,22 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: simPhase === 'researching' ? 'oklch(0.75 0.18 55)' : 'var(--color-accent)', animation: 'pulse 1.2s infinite' }} />
             <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text)' }}>
-              {simPhase === 'researching' ? '🔍 DeepSearch — Researching market context...' : '◈ FRACTURE — Running simulation with 32 agents...'}
+              {simPhase === 'researching' ? '🔍 DeepSearch — Pesquisando contexto de mercado...' : '◈ FRACTURE — Executando simulação com 32 agentes...'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-            <span style={{ color: simPhase !== 'idle' ? 'oklch(0.75 0.18 55)' : 'var(--color-text-muted)' }}>✓ DeepSearch {simPhase === 'researching' ? 'running...' : researchSources > 0 ? `— ${researchSources} sources found` : '— complete'}</span>
-            <span style={{ color: simPhase === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{simPhase === 'running' ? '⟳ Simulation running...' : '○ Simulation queued'}</span>
+            <span style={{ color: simPhase !== 'idle' ? 'oklch(0.75 0.18 55)' : 'var(--color-text-muted)' }}>✓ DeepSearch {simPhase === 'researching' ? 'executando...' : researchSources > 0 ? `— ${researchSources} fontes encontradas` : '— concluído'}</span>
+            <span style={{ color: simPhase === 'running' ? 'var(--color-accent)' : 'var(--color-text-muted)' }}>{simPhase === 'running' ? '⟳ Simulação em andamento...' : '○ Simulação na fila'}</span>
           </div>
           <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: '12px' }}>
-        <button onClick={() => onNavigate('home')} disabled={running} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '14px', cursor: running ? 'not-allowed' : 'pointer' }}>Cancel</button>
+        <button onClick={() => onNavigate('home')} disabled={running} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '14px', cursor: running ? 'not-allowed' : 'pointer' }}>Cancelar</button>
         <button onClick={handleRun} disabled={!question.trim() || running}
           style={{ padding: '10px 28px', borderRadius: '8px', border: 'none', background: running ? 'var(--color-border)' : 'var(--color-accent)', color: '#fff', fontSize: '14px', fontWeight: '600', cursor: running ? 'not-allowed' : 'pointer' }}>
-          {running ? (simPhase === 'researching' ? '🔍 Researching...' : '◈ Simulating...') : '◈ Run Simulation'}
+          {running ? (simPhase === 'researching' ? '🔍 Pesquisando...' : '◈ Simulando...') : '◈ Iniciar Simulação'}
         </button>
       </div>
     </div>

@@ -25,7 +25,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
           {company ? `${company.name} — ` : ''}<span style={{ color: 'var(--color-accent)' }}>FRACTURE</span> Dashboard
         </h1>
         <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-          Simulate market ruptures. Discover what breaks before it breaks you.
+          Simule rupturas de mercado. Descubra o que quebra antes que quebre você.
         </p>
       </div>
 
@@ -34,8 +34,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
         onClick={() => onNavigate('new-simulation')}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontWeight: '600', fontSize: '15px', color: 'var(--color-text)', marginBottom: '4px' }}>Run a New Simulation</div>
-            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Ask a strategic question. Watch the market simulate itself.</div>
+            <div style={{ fontWeight: '600', fontSize: '15px', color: 'var(--color-text)', marginBottom: '4px' }}>Iniciar Nova Simulação</div>
+            <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Faça uma pergunta estratégica. Veja o mercado se simular.</div>
           </div>
           <div style={{ fontSize: '28px', color: 'var(--color-accent)' }}>◈</div>
         </div>
@@ -44,9 +44,9 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Total Simulations', value: sims.length },
-          { label: 'Fracture Events', value: sims.filter(s => s.status === 'complete').length },
-          { label: 'Archetypes Active', value: 12 },
+          { label: 'Total de Simulações', value: sims.length },
+          { label: 'Eventos de Ruptura', value: sims.filter(s => s.status === 'complete').length },
+          { label: 'Arquétipos Ativos', value: 12 },
         ].map(stat => (
           <div key={stat.label} style={Card}>
             <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--color-accent)', lineHeight: 1 }}>{stat.value}</div>
@@ -57,10 +57,10 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
 
       {/* Recent simulations */}
       <div style={Card}>
-        <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--color-text)', marginBottom: '16px' }}>Recent Simulations</div>
+        <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--color-text)', marginBottom: '16px' }}>Simulações Recentes</div>
         {sims.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-muted)', fontSize: '13px' }}>
-            No simulations yet. Run your first one to see results here.
+            Nenhuma simulação ainda. Inicie a primeira para ver os resultados aqui.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
