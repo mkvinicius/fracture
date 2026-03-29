@@ -164,6 +164,14 @@ func (h *Handler) Routes() http.Handler {
 
 	// LLM key validation
 	r.Post("/keys/validate", h.validateKey)
+	r.Get("/keys", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, []struct{}{})
+	})
+
+	// Notifications (stub)
+	r.Get("/notifications", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, []struct{}{})
+	})
 
 	// Simulations — full implementation
 	r.Post("/simulations", h.createSimulation)
