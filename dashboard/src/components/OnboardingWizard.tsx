@@ -22,17 +22,17 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
     setError('')
     try {
       // Save company
-      await fetch('/api/company', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(company) })
+      await fetch('/api/v1/company', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(company) })
       // Save keys
       for (const [provider, key] of Object.entries(keys)) {
         if (key.trim()) {
-          await fetch('/api/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
+          await fetch('/api/v1/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
         }
       }
       // Save telemetry preference
-      await fetch('/api/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: telemetryEnabled }) })
+      await fetch('/api/v1/telemetry', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: telemetryEnabled }) })
       // Mark onboarding complete
-      await fetch('/api/onboarding/complete', { method: 'POST' })
+      await fetch('/api/v1/onboarding/complete', { method: 'POST' })
       onComplete()
     } catch {
       setError('Failed to save. Make sure FRACTURE is running.')

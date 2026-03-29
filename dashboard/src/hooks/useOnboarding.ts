@@ -5,7 +5,7 @@ export function useOnboarding() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/onboarding/status')
+    fetch('/api/v1/onboarding/status')
       .then(r => r.json())
       .then(d => { setIsOnboarded(d.complete); setLoading(false) })
       .catch(() => { setIsOnboarded(false); setLoading(false) })
