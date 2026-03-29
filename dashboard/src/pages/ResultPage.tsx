@@ -55,7 +55,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/simulations/${simId}/report`)
+    fetch(`/api/v1/simulations/${simId}/report`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => { setReport(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
@@ -92,8 +92,8 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-            <button onClick={() => downloadFile(`/api/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
-            <button onClick={() => downloadFile(`/api/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
+            <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
+            <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
             <button
               onClick={() => onNavigate('feedback', simId)}
               style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}

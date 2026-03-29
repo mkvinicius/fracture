@@ -37,7 +37,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
       setLoading(false)
       return
     }
-    fetch(`/api/simulations/compare?ids=${simIds.join(',')}`)
+    fetch(`/api/v1/simulations/compare?ids=${simIds.join(',')}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => { setReport(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })

@@ -29,7 +29,7 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/simulations/${simId}/feedback`, {
+      const res = await fetch(`/api/v1/simulations/${simId}/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
