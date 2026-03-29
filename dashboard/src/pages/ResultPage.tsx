@@ -63,15 +63,15 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
-      Loading report...
+      Carregando relatório...
     </div>
   )
 
   if (error || !report) return (
     <div style={{ padding: '32px', maxWidth: '960px' }}>
-      <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Back</button>
+      <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Voltar</button>
       <div style={{ marginTop: '24px', padding: '32px', background: 'var(--color-surface)', borderRadius: '10px', border: '1px solid var(--color-border)', color: 'var(--color-danger)', textAlign: 'center' }}>
-        {error || 'Report not available'}
+        {error || 'Relatório não disponível'}
       </div>
     </div>
   )
@@ -82,10 +82,10 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
     <div style={{ padding: '32px', maxWidth: '960px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
       {/* Header */}
       <div>
-        <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Back</button>
+        <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Voltar</button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '16px', gap: '16px' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Simulation Report</h1>
+            <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Relatório da Simulação</h1>
             <p style={{ margin: '6px 0 0', fontSize: '14px', color: 'var(--color-text-muted)' }}>{report.question}</p>
             <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
               {report.total_tokens.toLocaleString()} tokens · {(report.duration_ms / 1000).toFixed(1)}s · {report.watermark.version}
@@ -98,7 +98,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
               onClick={() => onNavigate('feedback', simId)}
               style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
-              Give Feedback
+              Dar Feedback
             </button>
           </div>
         </div>
@@ -109,21 +109,21 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
         <Card style={{ background: 'oklch(0.18 0.04 280)', borderColor: 'oklch(0.4 0.15 280)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
             <span style={{ padding: '3px 10px', borderRadius: '20px', background: 'oklch(0.4 0.15 280)', color: '#fff', fontSize: '11px', fontWeight: '700' }}>PREMIUM · ENSEMBLE</span>
-            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{report.ensemble_result.runs} independent runs</span>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>{report.ensemble_result.runs} execuções independentes</span>
           </div>
           <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>Consensus Probability</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>Probabilidade de Consenso</div>
               <div style={{ fontSize: '22px', fontWeight: '700', color: 'var(--color-text)' }}>{conf(report.ensemble_result.consensus_probability)}</div>
             </div>
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>Variance</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>Variância</div>
               <div style={{ fontSize: '22px', fontWeight: '700', color: 'var(--color-text)' }}>{report.ensemble_result.variance.toFixed(3)}</div>
             </div>
           </div>
           {report.ensemble_result.consensus_scenarios?.length > 0 && (
             <div style={{ marginTop: '12px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>Consensus Scenarios</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px' }}>Cenários de Consenso</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {report.ensemble_result.consensus_scenarios.map((s, i) => (
                   <div key={i} style={{ fontSize: '13px', color: 'var(--color-text)', padding: '6px 10px', background: 'oklch(0.14 0.03 280)', borderRadius: '6px' }}>{s}</div>
@@ -136,7 +136,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
 
       {/* Probable Future */}
       <div>
-        <SectionTitle>Probable Future · {conf(report.probable_future.confidence)} confidence</SectionTitle>
+        <SectionTitle>Futuro Provável · {conf(report.probable_future.confidence)} de confiança</SectionTitle>
         <Card>
           <p style={{ margin: '0 0 20px', fontSize: '14px', lineHeight: '1.7', color: 'var(--color-text)' }}>{report.probable_future.narrative}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -150,7 +150,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
           </div>
           {report.probable_future.key_assumptions?.length > 0 && (
             <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px', fontWeight: '600' }}>Key Assumptions</div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px', fontWeight: '600' }}>Premissas-chave</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {report.probable_future.key_assumptions.map((a, i) => (
                   <span key={i} style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '20px', background: 'var(--color-background)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>{a}</span>
@@ -164,7 +164,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Tension Map */}
       {report.tension_map?.length > 0 && (
         <div>
-          <SectionTitle>Tension Map</SectionTitle>
+          <SectionTitle>Mapa de Tensão</SectionTitle>
           <Card>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {report.tension_map.map((t, i) => (
@@ -189,7 +189,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Rupture Scenarios */}
       {report.rupture_scenarios?.length > 0 && (
         <div>
-          <SectionTitle>Rupture Scenarios</SectionTitle>
+          <SectionTitle>Cenários de Ruptura</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {report.rupture_scenarios.map((s, i) => (
               <Card key={i}>
@@ -200,13 +200,13 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-                  <div><strong style={{ color: 'var(--color-text)' }}>Who breaks it:</strong> {s.who_breaks}</div>
-                  <div><strong style={{ color: 'var(--color-text)' }}>How:</strong> {s.how_it_happens}</div>
-                  <div><strong style={{ color: 'var(--color-text)' }}>Impact:</strong> {s.impact_on_company}</div>
+                  <div><strong style={{ color: 'var(--color-text)' }}>Quem rompe:</strong> {s.who_breaks}</div>
+                  <div><strong style={{ color: 'var(--color-text)' }}>Como:</strong> {s.how_it_happens}</div>
+                  <div><strong style={{ color: 'var(--color-text)' }}>Impacto:</strong> {s.impact_on_company}</div>
                 </div>
                 {s.how_to_be_first && (
                   <div style={{ marginTop: '12px', padding: '12px', borderRadius: '8px', background: 'oklch(0.18 0.04 145)', border: '1px solid oklch(0.35 0.1 145)', fontSize: '13px' }}>
-                    <strong style={{ color: 'oklch(0.7 0.15 145)', display: 'block', marginBottom: '4px' }}>How to be first:</strong>
+                    <strong style={{ color: 'oklch(0.7 0.15 145)', display: 'block', marginBottom: '4px' }}>Como ser o primeiro:</strong>
                     <span style={{ color: 'var(--color-text)' }}>{s.how_to_be_first}</span>
                   </div>
                 )}
@@ -219,13 +219,13 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Coalitions */}
       {report.coalitions && report.coalitions.length > 0 && (
         <div>
-          <SectionTitle>Coalitions</SectionTitle>
+          <SectionTitle>Coalizões</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
             {report.coalitions.map((c, i) => (
               <Card key={i}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)' }}>{c.name}</div>
-                  {c.is_disruptive && <span style={{ padding: '2px 8px', borderRadius: '20px', background: 'var(--color-danger)22', color: 'var(--color-danger)', fontSize: '11px', fontWeight: '700' }}>DISRUPTIVE</span>}
+                  {c.is_disruptive && <span style={{ padding: '2px 8px', borderRadius: '20px', background: 'var(--color-danger)22', color: 'var(--color-danger)', fontSize: '11px', fontWeight: '700' }}>DISRUPTIVA</span>}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>{c.shared_goal}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
@@ -245,7 +245,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Rupture Timeline */}
       {report.rupture_timeline && report.rupture_timeline.length > 0 && (
         <div>
-          <SectionTitle>Rupture Timeline</SectionTitle>
+          <SectionTitle>Linha do Tempo de Ruptura</SectionTitle>
           <Card>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {report.rupture_timeline.map((e, i) => (
@@ -259,7 +259,7 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
                   </div>
                   <div style={{ flex: 1, paddingTop: '0' }}>
                     <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text)', marginBottom: '4px' }}>{e.description}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Trigger: {e.trigger}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Gatilho: {e.trigger}</div>
                   </div>
                 </div>
               ))}
@@ -271,13 +271,13 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Action Playbook */}
       {report.action_playbook && (
         <div>
-          <SectionTitle>Action Playbook</SectionTitle>
+          <SectionTitle>Plano de Ação</SectionTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
-            <PlaybookColumn title="90 Days" items={report.action_playbook.horizon_90_days} accent="var(--color-success)" />
-            <PlaybookColumn title="1 Year" items={report.action_playbook.horizon_1_year} accent="var(--color-accent)" />
-            <PlaybookColumn title="3 Years" items={report.action_playbook.horizon_3_years} accent="oklch(0.6 0.15 280)" />
-            <PlaybookColumn title="Quick Wins" items={report.action_playbook.quick_wins} accent="var(--color-warning)" />
-            <PlaybookColumn title="Critical Risks" items={report.action_playbook.critical_risks} accent="var(--color-danger)" />
+            <PlaybookColumn title="90 Dias" items={report.action_playbook.horizon_90_days} accent="var(--color-success)" />
+            <PlaybookColumn title="1 Ano" items={report.action_playbook.horizon_1_year} accent="var(--color-accent)" />
+            <PlaybookColumn title="3 Anos" items={report.action_playbook.horizon_3_years} accent="oklch(0.6 0.15 280)" />
+            <PlaybookColumn title="Vitórias Rápidas" items={report.action_playbook.quick_wins} accent="var(--color-warning)" />
+            <PlaybookColumn title="Riscos Críticos" items={report.action_playbook.critical_risks} accent="var(--color-danger)" />
           </div>
         </div>
       )}
@@ -285,17 +285,17 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
       {/* Fracture Events */}
       {report.fracture_events?.length > 0 && (
         <div>
-          <SectionTitle>Fracture Events</SectionTitle>
+          <SectionTitle>Eventos de Ruptura</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {report.fracture_events.map((fe, i) => (
               <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '12px 16px', background: 'var(--color-surface)', borderRadius: '8px', border: `1px solid ${fe.accepted ? 'var(--color-success)' : 'var(--color-border)'}` }}>
-                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', minWidth: '60px' }}>Round {fe.round}</div>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', minWidth: '60px' }}>Rodada {fe.round}</div>
                 <div style={{ flex: 1, fontSize: '13px', color: 'var(--color-text)' }}>
                   <span style={{ color: 'var(--color-text-muted)' }}>{fe.proposed_by.slice(0, 8)} → </span>
-                  {fe.accepted ? fe.proposal.new_description : `Rejected change to ${fe.proposal.original_rule_id}`}
+                  {fe.accepted ? fe.proposal.new_description : `Alteração rejeitada em ${fe.proposal.original_rule_id}`}
                 </div>
                 <span style={{ padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: fe.accepted ? 'var(--color-success)22' : 'var(--color-border)', color: fe.accepted ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                  {fe.accepted ? 'ACCEPTED' : 'REJECTED'}
+                  {fe.accepted ? 'ACEITO' : 'REJEITADO'}
                 </span>
               </div>
             ))}

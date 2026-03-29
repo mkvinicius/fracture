@@ -33,7 +33,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
 
   useEffect(() => {
     if (simIds.length < 2) {
-      setError('At least 2 simulations required for comparison')
+      setError('São necessárias pelo menos 2 simulações para comparação')
       setLoading(false)
       return
     }
@@ -45,18 +45,18 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
-      Comparing simulations...
+      Comparando simulações...
     </div>
   )
 
   return (
     <div style={{ padding: '32px', maxWidth: '960px' }}>
-      <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Back</button>
+      <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Voltar</button>
 
       <div style={{ marginTop: '16px', marginBottom: '28px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Comparison Report</h1>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Relatório de Comparação</h1>
         <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          {simIds.length} simulations compared
+          {simIds.length} simulações comparadas
         </p>
       </div>
 
@@ -75,7 +75,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
 
           {/* Simulation legend */}
           <div>
-            <SectionTitle>Simulations</SectionTitle>
+            <SectionTitle>Simulações</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {report.simulation_ids.map((id, i) => (
                 <div key={id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 14px', background: 'var(--color-surface)', borderRadius: '8px', border: `1px solid ${SIM_COLORS[i % SIM_COLORS.length]}44` }}>
@@ -84,7 +84,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
                     <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '2px' }}>{id.slice(0, 16)}…</div>
                     <div style={{ fontSize: '13px', color: 'var(--color-text)' }}>{report.questions[i] || '—'}</div>
                   </div>
-                  <button onClick={() => onNavigate('result', id)} style={linkBtnStyle}>View</button>
+                  <button onClick={() => onNavigate('result', id)} style={linkBtnStyle}>Ver</button>
                 </div>
               ))}
             </div>
@@ -92,7 +92,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
 
           {/* Common fractures */}
           <div>
-            <SectionTitle>Common Rupture Patterns</SectionTitle>
+            <SectionTitle>Padrões de Ruptura Comuns</SectionTitle>
             {report.common_fractures?.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {report.common_fractures.map((f, i) => (
@@ -104,7 +104,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
               </div>
             ) : (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-                No common rupture patterns — high divergence between runs
+                Nenhum padrão de ruptura comum — alta divergência entre execuções
               </div>
             )}
           </div>
@@ -112,7 +112,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
           {/* Divergent fractures */}
           {Object.keys(report.divergent_fractures || {}).length > 0 && (
             <div>
-              <SectionTitle>Divergent Patterns (unique per simulation)</SectionTitle>
+              <SectionTitle>Padrões Divergentes (únicos por simulação)</SectionTitle>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {Object.entries(report.divergent_fractures).map(([simId, fractures], idx) => (
                   <div key={simId} style={{ padding: '14px 16px', background: 'var(--color-surface)', borderRadius: '8px', border: `1px solid ${SIM_COLORS[idx % SIM_COLORS.length]}44` }}>
@@ -134,7 +134,7 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
           {/* Tension delta bars */}
           {report.tension_delta?.length > 0 && (
             <div>
-              <SectionTitle>Tension Variance (top rules)</SectionTitle>
+              <SectionTitle>Variância de Tensão (principais regras)</SectionTitle>
               <div style={{ background: 'var(--color-surface)', borderRadius: '10px', border: '1px solid var(--color-border)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {report.tension_delta.map((td, i) => (
                   <div key={i}>
@@ -161,15 +161,15 @@ export default function ComparisonPage({ simIds, onNavigate }: { simIds: string[
           {/* Confidence delta */}
           <div style={{ padding: '20px', background: 'var(--color-surface)', borderRadius: '10px', border: '1px solid var(--color-border)', display: 'flex', gap: '24px', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Confidence Spread</div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Dispersão de Confiança</div>
               <div style={{ fontSize: '28px', fontWeight: '700', color: report.confidence_delta > 0.15 ? 'var(--color-warning)' : 'var(--color-success)' }}>
                 {report.confidence_delta > 0 ? '↑' : '↓'}{Math.round(report.confidence_delta * 100)}%
               </div>
             </div>
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
               {report.confidence_delta > 0.15
-                ? 'High variance — results are sensitive to initial conditions'
-                : 'Low variance — results are stable across runs'}
+                ? 'Alta variância — os resultados são sensíveis às condições iniciais'
+                : 'Baixa variância — os resultados são estáveis entre execuções'}
             </div>
           </div>
         </div>

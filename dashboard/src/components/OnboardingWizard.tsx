@@ -15,7 +15,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
   const [error, setError] = useState('')
 
   // steps: 0=Welcome, 1=Company, 2=AI Keys, 3=Telemetry, 4=Ready
-  const steps = ['Welcome', 'Company Profile', 'AI Keys', 'Privacy', 'Ready']
+  const steps = ['Bem-vindo', 'Perfil da Empresa', 'Chaves de IA', 'Privacidade', 'Pronto']
 
   async function handleFinish() {
     setSaving(true)
@@ -35,7 +35,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
       await fetch('/api/v1/onboarding/complete', { method: 'POST' })
       onComplete()
     } catch {
-      setError('Failed to save. Make sure FRACTURE is running.')
+      setError('Falha ao salvar. Verifique se o FRACTURE está em execução.')
       setSaving(false)
     }
   }
@@ -74,49 +74,49 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         {step === 0 && (
           <div>
             <div style={{ fontSize: '28px', fontWeight: '700', marginBottom: '12px', color: 'var(--color-text)' }}>
-              Welcome to <span style={{ color: 'var(--color-accent)' }}>FRACTURE</span>
+              Bem-vindo ao <span style={{ color: 'var(--color-accent)' }}>FRACTURE</span>
             </div>
             <p style={{ color: 'var(--color-text-muted)', lineHeight: '1.7', marginBottom: '32px' }}>
-              FRACTURE simulates how market rules break — and how you can be the one to break them first.
-              Let's set up your workspace in 4 quick steps.
+              FRACTURE simula como as regras de mercado se rompem — e como você pode ser o primeiro a quebrá-las.
+              Vamos configurar seu espaço de trabalho em 4 etapas rápidas.
             </p>
-            <button style={Btn} onClick={() => setStep(1)}>Get Started →</button>
+            <button style={Btn} onClick={() => setStep(1)}>Começar →</button>
           </div>
         )}
 
         {step === 1 && (
           <div>
-            <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text)' }}>Company Profile</div>
+            <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text)' }}>Perfil da Empresa</div>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '13px' }}>
-              This context is injected into every simulation so agents understand your market.
+              Este contexto é injetado em cada simulação para que os agentes entendam seu mercado.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Company Name</label>
+                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Nome da Empresa</label>
                 <input style={Input} value={company.name} onChange={e => setCompany(c => ({...c, name: e.target.value}))} placeholder="Acme Corp" />
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Sector / Industry</label>
-                <input style={Input} value={company.sector} onChange={e => setCompany(c => ({...c, sector: e.target.value}))} placeholder="e.g. SaaS, Retail, Healthcare" />
+                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Setor / Indústria</label>
+                <input style={Input} value={company.sector} onChange={e => setCompany(c => ({...c, sector: e.target.value}))} placeholder="ex.: SaaS, Varejo, Saúde" />
               </div>
               <div>
-                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Brief Description</label>
-                <textarea style={{...Input, height: '80px', resize: 'vertical'}} value={company.description} onChange={e => setCompany(c => ({...c, description: e.target.value}))} placeholder="What does your company do? Who are your main competitors?" />
+                <label style={{ fontSize: '12px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Breve Descrição</label>
+                <textarea style={{...Input, height: '80px', resize: 'vertical'}} value={company.description} onChange={e => setCompany(c => ({...c, description: e.target.value}))} placeholder="O que sua empresa faz? Quais são seus principais concorrentes?" />
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(0)}>← Back</button>
-              <button style={Btn} onClick={() => setStep(2)} disabled={!company.name}>Next →</button>
+              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(0)}>← Voltar</button>
+              <button style={Btn} onClick={() => setStep(2)} disabled={!company.name}>Próximo →</button>
             </div>
           </div>
         )}
 
         {step === 2 && (
           <div>
-            <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text)' }}>AI Keys</div>
+            <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text)' }}>Chaves de IA</div>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '13px' }}>
-              Keys are stored locally on your machine. They never leave your computer.
-              Add at least one to run simulations.
+              As chaves são armazenadas localmente na sua máquina. Elas nunca saem do seu computador.
+              Adicione pelo menos uma para executar simulações.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {PROVIDERS.map(p => (
@@ -129,8 +129,8 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             </div>
             {error && <div style={{ color: 'var(--color-danger)', fontSize: '13px', marginTop: '12px' }}>{error}</div>}
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(1)}>← Back</button>
-              <button style={Btn} onClick={() => setStep(3)} disabled={Object.values(keys).every(k => !k.trim())}>Next →</button>
+              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(1)}>← Voltar</button>
+              <button style={Btn} onClick={() => setStep(3)} disabled={Object.values(keys).every(k => !k.trim())}>Próximo →</button>
             </div>
           </div>
         )}
@@ -138,25 +138,25 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         {step === 3 && (
           <div>
             <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: 'var(--color-text)' }}>
-              Privacy &amp; Telemetry
+              Privacidade &amp; Telemetria
             </div>
             <p style={{ color: 'var(--color-text-muted)', marginBottom: '20px', fontSize: '13px', lineHeight: '1.7' }}>
-              FRACTURE collects <strong style={{ color: 'var(--color-text)' }}>anonymous usage data</strong> to understand
-              how the tool is being used and improve future versions. No personal data, no simulation content,
-              no API keys are ever collected.
+              FRACTURE coleta <strong style={{ color: 'var(--color-text)' }}>dados de uso anônimos</strong> para entender
+              como a ferramenta está sendo utilizada e melhorar versões futuras. Nenhum dado pessoal, conteúdo de simulação
+              ou chave de API é coletado.
             </p>
 
             {/* What is collected */}
             <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'var(--color-surface-2)', border: '1px solid var(--color-border)', marginBottom: '20px' }}>
               <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                What is collected
+                O que é coletado
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                 {[
-                  ['🔑', 'Anonymous install ID'],
-                  ['🖥️', 'OS &amp; architecture'],
-                  ['🌍', 'Country (from IP)'],
-                  ['📦', 'FRACTURE version'],
+                  ['🔑', 'ID de instalação anônimo'],
+                  ['🖥️', 'SO &amp; arquitetura'],
+                  ['🌍', 'País (pelo IP)'],
+                  ['📦', 'Versão do FRACTURE'],
                 ].map(([icon, label]) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
                     <span>{icon}</span>
@@ -165,7 +165,7 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
                 ))}
               </div>
               <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--color-text-muted)', opacity: 0.7 }}>
-                Your IP is masked (last octet removed). No simulation data is ever sent.
+                Seu IP é mascarado (último octeto removido). Nenhum dado de simulação é enviado.
               </div>
             </div>
 
@@ -182,12 +182,12 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             >
               <div>
                 <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)' }}>
-                  {telemetryEnabled ? 'Telemetry enabled' : 'Telemetry disabled'}
+                  {telemetryEnabled ? 'Telemetria ativada' : 'Telemetria desativada'}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   {telemetryEnabled
-                    ? 'Helping improve FRACTURE — thank you!'
-                    : 'You can re-enable this anytime in Settings.'}
+                    ? 'Ajudando a melhorar o FRACTURE — obrigado!'
+                    : 'Você pode reativar a qualquer momento nas Configurações.'}
                 </div>
               </div>
               {/* Toggle switch */}
@@ -206,8 +206,8 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(2)}>← Back</button>
-              <button style={Btn} onClick={() => setStep(4)}>Next →</button>
+              <button style={{...Btn, background: 'var(--color-surface-2)', color: 'var(--color-text)'}} onClick={() => setStep(2)}>← Voltar</button>
+              <button style={Btn} onClick={() => setStep(4)}>Próximo →</button>
             </div>
           </div>
         )}
@@ -215,19 +215,19 @@ export default function OnboardingWizard({ onComplete }: { onComplete: () => voi
         {step === 4 && (
           <div>
             <div style={{ fontSize: '20px', fontWeight: '700', marginBottom: '12px', color: 'var(--color-text)' }}>
-              You're ready 🎯
+              Você está pronto 🎯
             </div>
             <p style={{ color: 'var(--color-text-muted)', lineHeight: '1.7', marginBottom: '32px' }}>
-              FRACTURE is configured. You can now run your first simulation — ask any strategic question and watch the market simulate itself.
+              FRACTURE está configurado. Agora você pode executar sua primeira simulação — faça qualquer pergunta estratégica e veja o mercado se simular.
             </p>
             <div style={{ padding: '16px', borderRadius: '10px', background: 'oklch(0.65 0.22 30 / 0.1)', border: '1px solid oklch(0.65 0.22 30 / 0.3)', marginBottom: '28px' }}>
-              <div style={{ fontSize: '13px', color: 'var(--color-accent)', fontWeight: '600', marginBottom: '4px' }}>Tip: Start with a question like</div>
+              <div style={{ fontSize: '13px', color: 'var(--color-accent)', fontWeight: '600', marginBottom: '4px' }}>Dica: Comece com uma pergunta como</div>
               <div style={{ fontSize: '13px', color: 'var(--color-text)', fontStyle: 'italic' }}>
-                "If a competitor offered our core product for free, how would the market react in 12 months?"
+                "Se um concorrente oferecesse nosso produto principal gratuitamente, como o mercado reagiria em 12 meses?"
               </div>
             </div>
             <button style={{...Btn, opacity: saving ? 0.6 : 1}} onClick={handleFinish} disabled={saving}>
-              {saving ? 'Saving...' : 'Launch FRACTURE →'}
+              {saving ? 'Salvando...' : 'Iniciar FRACTURE →'}
             </button>
           </div>
         )}

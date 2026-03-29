@@ -25,7 +25,7 @@ export default function ArchetypesPage() {
       </div>
       <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px', lineHeight: '1.5' }}>{a.desc}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Power</div>
+        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Poder</div>
         <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--color-border)' }}>
           <div style={{ height: '100%', borderRadius: '2px', width: `${a.power * 100}%`, background: a.type === 'Disruptor' ? 'oklch(0.55 0.18 300)' : 'var(--color-accent)' }} />
         </div>
@@ -37,19 +37,19 @@ export default function ArchetypesPage() {
   return (
     <div style={{ padding: '32px', maxWidth: '960px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Archetypes</h1>
-        <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>12 agents that simulate market behavior. 8 Conformists defend the status quo. 4 Disruptors try to break it.</p>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Arquétipos</h1>
+        <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>12 agentes que simulam o comportamento de mercado. 8 Conformistas defendem o status quo. 4 Disruptores tentam quebrá-lo.</p>
       </div>
 
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Conformists (8)</div>
+        <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Conformistas (8)</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           {conformists.map(a => <Card key={a.name} a={a} />)}
         </div>
       </div>
 
       <div>
-        <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Disruptors (4)</div>
+        <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '12px' }}>Disruptores (4)</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           {disruptors.map(a => <Card key={a.name} a={a} />)}
         </div>

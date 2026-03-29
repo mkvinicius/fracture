@@ -44,12 +44,12 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--color-text-muted)' }}>Loading...</div>
+        <div style={{ textAlign: 'center', padding: '60px', color: 'var(--color-text-muted)' }}>Carregando...</div>
       ) : sims.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--color-text-muted)', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>◎</div>
-          <div style={{ fontWeight: '600', marginBottom: '6px' }}>No simulations yet</div>
-          <div style={{ fontSize: '13px' }}>Run your first simulation to see results here</div>
+          <div style={{ fontWeight: '600', marginBottom: '6px' }}>Nenhuma simulação ainda</div>
+          <div style={{ fontSize: '13px' }}>Inicie sua primeira simulação para ver os resultados aqui</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -66,7 +66,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sim.question}</div>
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  {sim.department} · {sim.rounds} rounds
+                  {sim.department} · {sim.rounds} rodadas
                   {sim.duration_ms ? ` · ${(sim.duration_ms / 1000).toFixed(1)}s` : ''}
                   · {new Date(sim.created_at * 1000).toLocaleDateString()}
                 </div>

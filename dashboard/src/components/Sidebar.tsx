@@ -1,11 +1,11 @@
 import { type Page } from '../App'
 
 const nav = [
-  { id: 'home',           label: 'Dashboard',    icon: '⬡' },
-  { id: 'new-simulation', label: 'New Simulation',icon: '◈' },
-  { id: 'simulations',    label: 'History',      icon: '◎' },
-  { id: 'archetypes',     label: 'Archetypes',   icon: '◇' },
-  { id: 'settings',       label: 'Settings',     icon: '⚙' },
+  { id: 'home',           label: 'Dashboard',       icon: '⬡' },
+  { id: 'new-simulation', label: 'Nova Simulação',   icon: '◈' },
+  { id: 'simulations',    label: 'Histórico',        icon: '◎' },
+  { id: 'archetypes',     label: 'Arquétipos',       icon: '◇' },
+  { id: 'settings',       label: 'Configurações',    icon: '⚙' },
 ] as const
 
 export default function Sidebar({ currentPage, onNavigate }: {
@@ -30,7 +30,7 @@ export default function Sidebar({ currentPage, onNavigate }: {
           }}>F</div>
           <div>
             <div style={{ fontWeight: '700', fontSize: '15px', letterSpacing: '-0.3px', color: 'var(--color-text)' }}>FRACTURE</div>
-            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.5px' }}>SIMULATION ENGINE</div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', letterSpacing: '0.5px' }}>MOTOR DE SIMULAÇÃO</div>
           </div>
         </div>
       </div>

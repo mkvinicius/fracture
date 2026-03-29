@@ -28,18 +28,18 @@ export default function ConvergencePage({ simId, onNavigate }: { simId: string; 
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
-      Loading convergence data...
+      Carregando dados de convergência...
     </div>
   )
 
   return (
     <div style={{ padding: '32px', maxWidth: '960px' }}>
-      <button onClick={() => onNavigate('result', simId)} style={backBtnStyle}>← Back to report</button>
+      <button onClick={() => onNavigate('result', simId)} style={backBtnStyle}>← Voltar ao relatório</button>
 
       <div style={{ marginTop: '16px', marginBottom: '28px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Convergence Chart</h1>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Gráfico de Convergência</h1>
         <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          Average market tension per round — how quickly the simulation converged
+          Tensão média de mercado por rodada — velocidade de convergência da simulação
         </p>
       </div>
 
@@ -51,7 +51,7 @@ export default function ConvergencePage({ simId, onNavigate }: { simId: string; 
 
       {points.length === 0 && !error ? (
         <div style={{ padding: '48px', textAlign: 'center', color: 'var(--color-text-muted)', background: 'var(--color-surface)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-          No round data available for this simulation
+          Nenhum dado de rodada disponível para esta simulação
         </div>
       ) : (
         <div style={{ background: 'var(--color-surface)', borderRadius: '10px', border: '1px solid var(--color-border)', padding: '24px', overflowX: 'auto' }}>
@@ -62,10 +62,10 @@ export default function ConvergencePage({ simId, onNavigate }: { simId: string; 
 
       {points.length > 0 && (
         <div style={{ marginTop: '20px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-          <StatCard label="Rounds" value={String(points[points.length - 1]?.round ?? 0)} />
-          <StatCard label="Peak Tension" value={`${Math.round(Math.max(...points.map(p => p.avg_tension)) * 100)}%`} />
-          <StatCard label="Final Tension" value={`${Math.round((points[points.length - 1]?.avg_tension ?? 0) * 100)}%`} />
-          <StatCard label="Fracture Points" value={String(points.reduce((s, p) => s + p.fracture_count, 0))} />
+          <StatCard label="Rodadas" value={String(points[points.length - 1]?.round ?? 0)} />
+          <StatCard label="Tensão Máxima" value={`${Math.round(Math.max(...points.map(p => p.avg_tension)) * 100)}%`} />
+          <StatCard label="Tensão Final" value={`${Math.round((points[points.length - 1]?.avg_tension ?? 0) * 100)}%`} />
+          <StatCard label="Pontos de Ruptura" value={String(points.reduce((s, p) => s + p.fracture_count, 0))} />
         </div>
       )}
     </div>
@@ -128,7 +128,7 @@ function TensionChart({ points }: { points: TensionPoint[] }) {
         opacity="0.7"
       />
       <text x={PAD.left + PLOT_W - 4} y={thresholdY - 5} textAnchor="end"
-        fill="var(--color-danger)" fontSize="10" opacity="0.8">threshold</text>
+        fill="var(--color-danger)" fontSize="10" opacity="0.8">limiar</text>
 
       {/* Area fill */}
       <path d={areaPath} fill="url(#areaGrad)" />
@@ -169,10 +169,10 @@ function TensionChart({ points }: { points: TensionPoint[] }) {
 
       {/* Axis labels */}
       <text x={PAD.left + PLOT_W / 2} y={SVG_H - 2} textAnchor="middle"
-        fill="var(--color-text-muted)" fontSize="11">Round</text>
+        fill="var(--color-text-muted)" fontSize="11">Rodada</text>
       <text x={14} y={PAD.top + PLOT_H / 2} textAnchor="middle"
         fill="var(--color-text-muted)" fontSize="11"
-        transform={`rotate(-90, 14, ${PAD.top + PLOT_H / 2})`}>Tension</text>
+        transform={`rotate(-90, 14, ${PAD.top + PLOT_H / 2})`}>Tensão</text>
     </svg>
   )
 }
@@ -180,9 +180,9 @@ function TensionChart({ points }: { points: TensionPoint[] }) {
 function Legend() {
   return (
     <div style={{ display: 'flex', gap: '20px', marginTop: '12px', flexWrap: 'wrap' }}>
-      <LegendItem color="var(--color-accent)" label="Average tension" />
-      <LegendItem color="var(--color-danger)" label="Fracture point" dot />
-      <LegendItem color="var(--color-danger)" dashed label="Threshold (0.7)" />
+      <LegendItem color="var(--color-accent)" label="Tensão média" />
+      <LegendItem color="var(--color-danger)" label="Ponto de ruptura" dot />
+      <LegendItem color="var(--color-danger)" dashed label="Limiar (0.7)" />
     </div>
   )
 }

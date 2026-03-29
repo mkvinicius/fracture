@@ -40,7 +40,7 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
       }
       setSubmitted(true)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Submission failed')
+      setError(e instanceof Error ? e.message : 'Falha ao enviar')
     } finally {
       setSubmitting(false)
     }
@@ -49,16 +49,16 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
   if (submitted) {
     return (
       <div style={{ padding: '32px', maxWidth: '640px' }}>
-        <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Back to simulations</button>
+        <button onClick={() => onNavigate('simulations')} style={backBtnStyle}>← Voltar para simulações</button>
         <div style={{ marginTop: '40px', textAlign: 'center', padding: '48px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)' }}>
           <div style={{ fontSize: '32px', marginBottom: '16px' }}>✓</div>
-          <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '8px' }}>Feedback submitted</div>
+          <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '8px' }}>Feedback enviado</div>
           <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '24px' }}>
-            The calibration model will use your feedback to improve future simulations.
+            O modelo de calibração usará seu feedback para melhorar simulações futuras.
           </div>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-            <button onClick={() => onNavigate('result', simId)} style={primaryBtnStyle}>View Report</button>
-            <button onClick={() => onNavigate('simulations')} style={secondaryBtnStyle}>All Simulations</button>
+            <button onClick={() => onNavigate('result', simId)} style={primaryBtnStyle}>Ver Relatório</button>
+            <button onClick={() => onNavigate('simulations')} style={secondaryBtnStyle}>Todas as Simulações</button>
           </div>
         </div>
       </div>
@@ -67,25 +67,25 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
 
   return (
     <div style={{ padding: '32px', maxWidth: '640px' }}>
-      <button onClick={() => onNavigate('result', simId)} style={backBtnStyle}>← Back to report</button>
+      <button onClick={() => onNavigate('result', simId)} style={backBtnStyle}>← Voltar ao relatório</button>
 
       <div style={{ marginTop: '16px', marginBottom: '28px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Give Feedback</h1>
+        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: 'var(--color-text)' }}>Dar Feedback</h1>
         <p style={{ margin: '6px 0 0', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          Your feedback calibrates archetype accuracy for future simulations.
+          Seu feedback calibra a precisão dos arquétipos para simulações futuras.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Outcome radio */}
         <div>
-          <label style={labelStyle}>Overall accuracy</label>
+          <label style={labelStyle}>Precisão geral</label>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {[
-              { value: 'accurate', label: 'Accurate' },
-              { value: 'partially_accurate', label: 'Partially accurate' },
-              { value: 'inaccurate', label: 'Inaccurate' },
-              { value: 'too_early', label: 'Too early to tell' },
+              { value: 'accurate', label: 'Preciso' },
+              { value: 'partially_accurate', label: 'Parcialmente preciso' },
+              { value: 'inaccurate', label: 'Impreciso' },
+              { value: 'too_early', label: 'Cedo demais para dizer' },
             ].map(opt => (
               <label key={opt.value} style={{
                 display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
@@ -110,7 +110,7 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
         {/* Delta score slider */}
         <div>
           <label style={labelStyle}>
-            Delta score
+            Pontuação delta
             <span style={{ marginLeft: '8px', fontWeight: '700', color: deltaColor(form.delta_score) }}>
               {form.delta_score > 0 ? '+' : ''}{form.delta_score.toFixed(2)}
             </span>
@@ -125,31 +125,31 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
             style={{ width: '100%', accentColor: 'var(--color-accent)' }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            <span>-1.0 (completely wrong)</span>
-            <span>0 (neutral)</span>
-            <span>+1.0 (perfect)</span>
+            <span>-1.0 (completamente errado)</span>
+            <span>0 (neutro)</span>
+            <span>+1.0 (perfeito)</span>
           </div>
         </div>
 
         {/* Predicted fracture */}
         <div>
-          <label style={labelStyle}>Predicted fracture (what the simulation foresaw)</label>
+          <label style={labelStyle}>Ruptura prevista (o que a simulação antecipou)</label>
           <input
             type="text"
             value={form.predicted_fracture}
             onChange={e => set('predicted_fracture', e.target.value)}
-            placeholder="e.g. Regulatory intervention in AI pricing"
+            placeholder="ex.: Intervenção regulatória em precificação de IA"
             style={inputStyle}
           />
         </div>
 
         {/* Actual outcome */}
         <div>
-          <label style={labelStyle}>Actual outcome (what really happened)</label>
+          <label style={labelStyle}>Resultado real (o que realmente aconteceu)</label>
           <textarea
             value={form.actual_outcome}
             onChange={e => set('actual_outcome', e.target.value)}
-            placeholder="Describe what actually occurred in the market..."
+            placeholder="Descreva o que realmente ocorreu no mercado..."
             rows={4}
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
           />
@@ -157,11 +157,11 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
 
         {/* Notes */}
         <div>
-          <label style={labelStyle}>Notes (optional)</label>
+          <label style={labelStyle}>Observações (opcional)</label>
           <textarea
             value={form.notes}
             onChange={e => set('notes', e.target.value)}
-            placeholder="Any additional context or observations..."
+            placeholder="Contexto adicional ou observações..."
             rows={3}
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
           />
@@ -175,9 +175,9 @@ export default function FeedbackPage({ simId, onNavigate }: { simId: string; onN
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button type="submit" disabled={submitting} style={{ ...primaryBtnStyle, opacity: submitting ? 0.6 : 1 }}>
-            {submitting ? 'Submitting...' : 'Submit Feedback'}
+            {submitting ? 'Enviando...' : 'Enviar Feedback'}
           </button>
-          <button type="button" onClick={() => onNavigate('result', simId)} style={secondaryBtnStyle}>Cancel</button>
+          <button type="button" onClick={() => onNavigate('result', simId)} style={secondaryBtnStyle}>Cancelar</button>
         </div>
       </form>
     </div>

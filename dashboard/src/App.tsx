@@ -36,7 +36,7 @@ function UpdateBanner({ info, onDismiss }: { info: UpdateInfo; onDismiss: () => 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-accent)' }}>
-            🔴 New version available
+            🔴 Nova versão disponível
           </div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
             v{info.current_version} → <strong style={{ color: 'var(--color-text)' }}>v{info.latest_version}</strong>
@@ -51,10 +51,10 @@ function UpdateBanner({ info, onDismiss }: { info: UpdateInfo; onDismiss: () => 
           rel="noopener noreferrer"
           style={{ padding: '6px 14px', borderRadius: '6px', background: 'var(--color-accent)', color: '#fff', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}
         >
-          Download update
+          Baixar atualização
         </a>
         <button onClick={onDismiss} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer' }}>
-          Later
+          Depois
         </button>
       </div>
     </div>
@@ -98,7 +98,7 @@ function App() {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', background:'var(--color-background)' }}>
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
           <div style={{ width:'32px', height:'32px', border:'2px solid var(--color-accent)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-          <span style={{ color:'var(--color-text-muted)', fontSize:'13px' }}>Loading FRACTURE...</span>
+          <span style={{ color:'var(--color-text-muted)', fontSize:'13px' }}>Carregando FRACTURE...</span>
         </div>
       </div>
     )
