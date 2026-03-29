@@ -92,30 +92,33 @@ func main() {
 	}
 	fileServer := http.FileServer(http.FS(dashSub))
 	r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		path := req.URL.Path[1:]
-		_, statErr := fs.Stat(dashSub, path)
-		if os.IsNotExist(statErr) {
-			if strings.HasPrefix(req.URL.Path, "/assets/") {
-				// Redirect any old hashed JS/CSS bundle to the current fixed-name file
-				// e.g. /assets/index-DKsY0a-L.js → /assets/index.js
-				if strings.HasSuffix(req.URL.Path, ".js") {
+		// Always redirect old content-hashed bundles to the current fixed-name files.
+		// This must run BEFORE the fs.Stat check because go:embed may have
+		// embedded a stale hashed file from the developer's local dist folder.
+		if strings.HasPrefix(req.URL.Path, "/assets/") {
+			base := req.URL.Path[len("/assets/"):]
+			// Hashed pattern: name-XXXXXXXX.js or name-XXXXXXXX.css (Vite default)
+			if isHashedAsset(base) {
+				if strings.HasSuffix(base, ".js") {
 					http.Redirect(w, req, "/assets/index.js", http.StatusFound)
 					return
 				}
-				if strings.HasSuffix(req.URL.Path, ".css") {
+				if strings.HasSuffix(base, ".css") {
 					http.Redirect(w, req, "/assets/index.css", http.StatusFound)
 					return
 				}
-				http.NotFound(w, req)
-				return
 			}
+		}
+
+		path := req.URL.Path[1:]
+		_, statErr := fs.Stat(dashSub, path)
+		if os.IsNotExist(statErr) {
 			// SPA routes → serve index.html
 			req.URL.Path = "/"
 			path = ""
 		}
 		// No caching for local app — always serve fresh
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-		// Force browser to clear its cache for this origin on every index.html load
 		if path == "" || path == "index.html" {
 			w.Header().Set("Clear-Site-Data", `"cache"`)
 		}
@@ -160,6 +163,24 @@ func main() {
 		log.Error().Err(err).Msg("shutdown error")
 	}
 	log.Info().Msg("FRACTURE stopped")
+}
+
+// isHashedAsset returns true for Vite content-hashed filenames like "index-DKsY0a-L.js".
+// These are old bundles that should be redirected to the current fixed-name files.
+func isHashedAsset(filename string) bool {
+	// Pattern: <name>-<hash>.<ext> where hash contains letters, digits, and hyphens
+	// and is at least 6 characters long (Vite default hash length is 8).
+	dot := strings.LastIndex(filename, ".")
+	if dot < 0 {
+		return false
+	}
+	namepart := filename[:dot] // e.g. "index-DKsY0a-L"
+	dash := strings.LastIndex(namepart, "-")
+	if dash < 0 {
+		return false
+	}
+	hash := namepart[dash+1:] // e.g. "DKsY0a-L" or "DKsY0a"
+	return len(hash) >= 6
 }
 
 // findAvailablePort finds an available port starting from preferred.
