@@ -944,7 +944,7 @@ func (h *Handler) listSimulations(w http.ResponseWriter, r *http.Request) {
 	}
 
 	seen := map[string]bool{}
-	var result []simSummary
+	result := []simSummary{}
 	for _, j := range jobs {
 		seen[j.ID] = true
 		result = append(result, simSummary{
