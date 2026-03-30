@@ -1,5 +1,20 @@
 # FRACTURE Changelog
 
+## [v2.6.0] — 2026-03-30
+### Added
+- Interface completamente traduzida para Português Brasileiro (todas as 12 telas)
+- Instaladores 2-click: `install-windows.bat` e `install-mac.sh`
+- Página de Arquétipos dinâmica: busca os 56 agentes reais da API (antes hardcoded com 12)
+- `dashboard/dist` commitado no repositório — sem necessidade de `pnpm build` para instalar
+
+### Fixed
+- **Cache infinito do browser**: embed.FS servia arquivos com `Last-Modified: zero`, causando freshness heurístico de ~200 anos. Corrigido servindo `index.html` diretamente via Go com `Cache-Control: no-store`
+- Assets movidos de `/assets/` para `/bundle/` para invalidar cache antigo
+- `builtinArchetypes()` retornava lista hardcoded de 12 agentes em vez dos 56 do motor real
+- Todos os endpoints do dashboard corrigidos para `/api/v1/`
+- Downgrade React 19 → 18 para compatibilidade com MetaMask SES (`Map.prototype.getOrInsert`)
+- Porta padrão alterada de 3000 para 4000
+
 ## [v2.5.0] — 2026-03-25
 ### Added
 - Export: baixa relatório em Markdown ou JSON com botões no ResultPage

@@ -3,7 +3,7 @@
 > **Simulate how market rules break — and be the one to break them first.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![release](https://img.shields.io/badge/release-v2.5.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
+[![release](https://img.shields.io/badge/release-v2.6.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
 [![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)](https://golang.org)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/mkvinicius/fracture/releases/latest)
 [![Tests](https://img.shields.io/badge/tests-115%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)

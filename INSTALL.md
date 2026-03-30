@@ -2,7 +2,13 @@
 
 ## Windows
 
-### Opção 1 — Executável direto (recomendado)
+### Opção 1 — Instalador automático (recomendado)
+
+1. Baixe [`install-windows.bat`](https://github.com/mkvinicius/fracture/raw/main/install-windows.bat)
+2. Clique com botão direito → **Executar como administrador**
+3. O instalador instala Go, clona o repositório, compila e cria atalho na área de trabalho
+
+### Opção 2 — Executável direto
 
 1. Acesse [github.com/mkvinicius/fracture/releases/latest](https://github.com/mkvinicius/fracture/releases/latest)
 2. Baixe `fracture-windows-amd64.exe`
@@ -11,9 +17,9 @@
 .\fracture-windows-amd64.exe
 ```
 
-4. O FRACTURE abre automaticamente em `http://localhost:3000`
+4. O FRACTURE abre automaticamente em `http://localhost:4000`
 
-### Opção 2 — Compilar do código-fonte
+### Opção 3 — Compilar do código-fonte
 
 **Requisitos:**
 - [Go 1.24+](https://go.dev/dl/)
@@ -53,7 +59,15 @@ go build -o fracture .
 
 ## macOS
 
-### Opção 1 — Executável direto
+### Opção 1 — Instalador automático (recomendado)
+
+```bash
+curl -L https://github.com/mkvinicius/fracture/raw/main/install-mac.sh | bash
+```
+
+Instala Homebrew e Go se necessário, clona o repositório, compila e cria `FRACTURE.command` na área de trabalho.
+
+### Opção 2 — Executável direto
 ```bash
 curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-darwin-amd64 -o fracture
 chmod +x fracture
@@ -62,7 +76,7 @@ chmod +x fracture
 
 > Apple Silicon (M1/M2/M3): use `fracture-darwin-arm64`
 
-### Opção 2 — Compilar do código-fonte
+### Opção 3 — Compilar do código-fonte
 ```bash
 git clone https://github.com/mkvinicius/fracture.git
 cd fracture
@@ -112,9 +126,9 @@ export OPENAI_API_KEY="sk-..."
 
 ## Problemas comuns
 
-**Porta 3000 ocupada**
+**Porta 4000 ocupada**
 
-O FRACTURE detecta automaticamente a próxima porta disponível (3000–3099). Se a 3000 estiver ocupada, ele sobe na 3001, 3002, etc. A URL correta é exibida no terminal na inicialização.
+O FRACTURE detecta automaticamente a próxima porta disponível (4000–4099). Se a 4000 estiver ocupada, ele sobe na 4001, 4002, etc. A URL correta é exibida no terminal na inicialização.
 
 **Windows Defender bloqueando o executável**
 
@@ -122,4 +136,4 @@ Clique em "Mais informações" → "Executar assim mesmo". O binário é open so
 
 **Dashboard não abre automaticamente**
 
-Acesse manualmente: `http://localhost:3000`
+Acesse manualmente: `http://localhost:4000`
