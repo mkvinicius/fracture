@@ -151,23 +151,20 @@ chmod +x fracture
 ./fracture
 ```
 
-The dashboard opens automatically in your browser at `http://localhost:3000`.
+The dashboard opens automatically in your browser at `http://localhost:4000`.
 
 ### Build from source
 
-Requirements: Go 1.21+, Node.js 18+
+Requirements: Go 1.21+ (Node.js not required — `dashboard/dist` is committed)
 
 ```bash
 git clone https://github.com/mkvinicius/fracture
 cd fracture
-
-# Build dashboard
-cd dashboard && pnpm install && pnpm build && cd ..
-
-# Build binary
 go build -o fracture .
 ./fracture
 ```
+
+> macOS installer: `bash install-mac.sh` — Windows installer: run `install-windows.bat` as administrator
 
 ---
 
