@@ -4,159 +4,78 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![release](https://img.shields.io/badge/release-v2.6.0-red.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)](https://golang.org)
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](https://github.com/mkvinicius/fracture/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-115%20passing-brightgreen.svg)](https://github.com/mkvinicius/fracture)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8.svg)](https://golang.org)
 
 ---
 
 ## What is FRACTURE?
 
-FRACTURE is a **local strategic market simulation tool** that runs on your computer. You ask a strategic question, the system automatically researches the market with **DeepSearch**, and then runs **56 AI agents** — each with a distinct personality, objective, and power level — to simulate how your market's rules might be rewritten over **20–50 rounds**.
+FRACTURE is a local strategic market simulation tool. You ask a strategic question, the system automatically researches the market with **DeepSearch**, and runs **56 AI agents** — each with a distinct personality, objective, and power level — to simulate how your market's rules might be rewritten over **40 rounds**.
 
-When tension accumulates and pressure explodes, a **FRACTURE POINT** occurs: a fundamental rule changes. The final report tells you what will happen, when, and what you should do before it does.
+When tension accumulates and pressure explodes, a **FRACTURE POINT** occurs: a fundamental rule changes. The final 6-part report tells you what will happen, when, and what you should do before it does.
 
-Everything runs **100% locally**. No cloud, no subscription, no data leaves your machine.
+**Your data stays on your machine. No subscription. No cloud. No external server.**
+
+---
+
+## How it works
+```
+1. You ask a strategic question
+         ↓
+2. DeepSearch automatically researches the market
+   (recent news, competitors, trends, regulatory changes)
+         ↓
+3. FRACTURE builds a World with 55+ rules across 7 domains
+         ↓
+4. 56 AI agents interact over 40 rounds
+   — form alliances, betray each other, tension the rules
+         ↓
+5. When tension explodes → FRACTURE POINT (a fundamental rule changes)
+         ↓
+6. Full 6-part report generated in parallel
+```
 
 ---
 
 ## Key Features
 
-- **Multi-Agent Simulation Engine** — 56 agents across 7 domains (Market, Technology, Regulation, Behavior, Culture, Geopolitics, Finance). Conformist and Disruptor archetypes with configurable power weights.
-- **DeepSearch Integration** — Real-world context from web research injected into simulation before it runs. Per-domain research with reflection loops and resumable state.
-- **Domain Calibration** — Feedback loop: rate simulation accuracy → calibrate archetype weights per domain via EMA → future simulations improve automatically.
-- **RAG Memory** — Local TF-IDF semantic search over past simulations per company. No external embedding APIs required.
-- **Export** — Download full reports as structured Markdown or JSON.
-- **Comparison** — Compare 2–5 simulations side-by-side: common fractures, divergent outcomes, tension delta, confidence delta.
-- **Convergence Chart** — SVG tension chart per simulation showing how pressure built and where fracture points occurred.
-- **Persistent Job State** — Simulations survive server restarts. Progress tracked per round with live UI updates.
-- **Audit Log** — HMAC-signed audit trail for all simulation events.
+- **56-Agent Simulation Engine** — 37 Conformists + 19 Disruptors across 7 domains with configurable power weights
+- **DeepSearch Integration** — Real-world market context injected before simulation runs
+- **Semantic Memory** — Embeddings-based similarity search across past simulations. Simulations get smarter over time.
+- **JUDGE Learning Cycle** — After each simulation, agents are scored (hit/partial/miss) and weights adjusted directionally
+- **EWC++ Consolidation** — Elastic Weight Consolidation prevents forgetting patterns from past simulations
+- **Causal Graph** — DeepSearch findings are extracted as causal triples and persist across simulations
+- **Parallel Report Generation** — All 6 report sections generated concurrently (~10s vs ~40s sequential)
+- **Domain Calibration** — Rate simulation accuracy → calibrate archetype weights → future simulations improve
+- **Comparison** — Compare 2–5 simulations side-by-side
+- **Convergence Chart** — SVG tension chart showing pressure build-up and fracture points
+- **Persistent Job State** — Simulations survive server restarts
+- **Audit Log** — HMAC-signed immutable audit trail
 - **React Dashboard** — Embedded SPA served from the Go binary. No separate web server needed.
-- **Auto-updater** — Checks GitHub Releases at startup and notifies of new versions.
-
----
-
-## Architecture
-
-```
-fracture/
-├── main.go                  # HTTP server, router, graceful shutdown
-├── api/
-│   └── handler.go           # REST API handlers (/api/v1/*)
-├── engine/
-│   ├── engine.go            # Simulation loop (rounds, voting, tension)
-│   ├── agents.go            # Agent types, personalities, permissions
-│   ├── world.go             # World state: Rules, TensionMap, Evidence
-│   ├── world_domains.go     # Domain-specific rule sets (7 domains)
-│   ├── report.go            # FullReport generation
-│   ├── export.go            # ReportToMarkdown()
-│   └── compare.go           # CompareReports()
-├── deepsearch/
-│   ├── agent.go             # DeepSearch agent (web search + LLM synthesis)
-│   └── domain_research.go   # DomainResearcher with semaphore + cache
-├── db/
-│   ├── db.go                # SQLite helpers (simulations, jobs, contexts)
-│   ├── schema.sql           # Database schema
-│   ├── migrations.go        # Versioned schema migrations
-│   └── rounds.go            # Round-level persistence + tension aggregation
-├── memory/
-│   └── memory.go            # TF-IDF RAG: index + similarity search
-├── security/
-│   ├── signer.go            # HMAC-SHA256 audit signing
-│   ├── sanitizer.go         # Input sanitization
-│   └── audit.go             # Audit logger
-├── telemetry/
-│   └── telemetry.go         # Anonymous opt-in ping
-├── updater/
-│   └── updater.go           # GitHub Releases version check
-└── dashboard/               # React + TypeScript SPA (Vite build)
-    └── src/
-        ├── App.tsx
-        └── pages/
-            ├── NewSimulationPage.tsx
-            ├── SimulationsPage.tsx
-            ├── ResultPage.tsx
-            ├── FeedbackPage.tsx
-            ├── ComparisonPage.tsx
-            └── ConvergencePage.tsx
-```
-
----
-
-## Simulation Modes
-
-| Mode     | Rounds | Runs | Agents | Use Case                          |
-|----------|--------|------|--------|-----------------------------------|
-| Standard | 30     | 1    | 56     | Quick analysis, daily use         |
-| Premium  | 50     | 2    | 56     | Deep research, critical decisions |
-
----
-
-## REST API
-
-All endpoints are under `/api/v1/`. Legacy `/api/*` paths redirect to `/api/v1/*` with HTTP 308 (method-preserving).
-
-### Simulations
-
-| Method   | Path                                    | Description                        |
-|----------|-----------------------------------------|------------------------------------|
-| `POST`   | `/api/v1/simulate`                      | Start a new simulation             |
-| `GET`    | `/api/v1/simulations`                   | List all simulations (with status) |
-| `GET`    | `/api/v1/simulations/{id}`              | Get simulation status/progress     |
-| `DELETE` | `/api/v1/simulations/{id}`              | Delete a simulation                |
-| `GET`    | `/api/v1/simulations/{id}/report`       | Full FullReport JSON               |
-| `GET`    | `/api/v1/simulations/{id}/export/markdown` | Download report as Markdown     |
-| `GET`    | `/api/v1/simulations/{id}/export/json` | Download report as JSON            |
-| `GET`    | `/api/v1/simulations/{id}/events`       | Tension per round (convergence)    |
-| `GET`    | `/api/v1/simulations/compare?ids=a,b`  | Compare 2–5 simulations            |
-
-### Feedback & Calibration
-
-| Method | Path                    | Description                            |
-|--------|-------------------------|----------------------------------------|
-| `POST` | `/api/v1/feedback`      | Submit accuracy feedback               |
-| `GET`  | `/api/v1/calibration`   | Get archetype calibration weights      |
-
-### Knowledge Base
-
-| Method   | Path                              | Description                         |
-|----------|-----------------------------------|-------------------------------------|
-| `GET`    | `/api/v1/archetypes`              | List agent archetypes               |
-| `GET`    | `/api/v1/rules`                   | List world rules                    |
-| `GET`    | `/api/v1/rules/domain/{domain}`   | List rules for a specific domain    |
-| `POST`   | `/api/v1/documents`               | Upload RAG document for a company   |
-| `GET`    | `/api/v1/documents/{company_id}`  | List RAG documents for a company    |
-
-### System
-
-| Method | Path             | Description              |
-|--------|------------------|--------------------------|
-| `GET`  | `/api/v1/health` | Health check             |
-| `GET`  | `/api/v1/config` | Get configuration        |
-| `PUT`  | `/api/v1/config` | Update configuration     |
-| `GET`  | `/api/v1/audit`  | Recent audit log entries |
+- **Auto-updater** — Checks GitHub Releases at startup
 
 ---
 
 ## Install
 
-### Pre-built binary (recommended)
-
-Download the latest release from [GitHub Releases](https://github.com/mkvinicius/fracture/releases/latest):
-
+### macOS (2 clicks)
 ```bash
-# Linux (amd64)
-curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-linux-amd64 -o fracture
-chmod +x fracture
-./fracture
+bash install-mac.sh
 ```
 
-The dashboard opens automatically in your browser at `http://localhost:4000`.
+### Windows (2 clicks)
+Download and run `install-windows.bat` as administrator.
+
+Or use the GUI installer: download `FRACTURE-Setup.exe` from [Releases](https://github.com/mkvinicius/fracture/releases/latest).
+
+### Linux
+```bash
+curl -L https://github.com/mkvinicius/fracture/releases/latest/download/fracture-linux-amd64 -o fracture
+chmod +x fracture && ./fracture
+```
 
 ### Build from source
-
-Requirements: Go 1.21+ (Node.js not required — `dashboard/dist` is committed)
-
+Requirements: Go 1.24+ only (`dashboard/dist` is pre-built and committed)
 ```bash
 git clone https://github.com/mkvinicius/fracture
 cd fracture
@@ -164,68 +83,49 @@ go build -o fracture .
 ./fracture
 ```
 
-> macOS installer: `bash install-mac.sh` — Windows installer: run `install-windows.bat` as administrator
+Opens at `http://localhost:4000`
 
 ---
 
 ## Configuration
 
-FRACTURE stores data in the platform data directory:
-- **Linux**: `~/.local/share/FRACTURE/data.db`
-- **macOS**: `~/Library/Application Support/FRACTURE/data.db`
-- **Windows**: `%APPDATA%\FRACTURE\data.db`
+Data stored at:
+- Linux: `~/.local/share/FRACTURE/data.db`
+- macOS: `~/Library/Application Support/FRACTURE/data.db`
+- Windows: `%APPDATA%\FRACTURE\data.db`
 
-### Environment Variables
+| Variable | Description |
+|---|---|
+| `OPENAI_API_KEY` | LLM calls + embeddings (recommended) |
+| `ANTHROPIC_API_KEY` | Claude models (optional) |
+| `GOOGLE_API_KEY` | Gemini models (optional) |
+| `TAVILY_API_KEY` | Web search for DeepSearch (optional) |
+| `SERPAPI_KEY` | Web search fallback (optional) |
 
-| Variable          | Description                                                       |
-|-------------------|-------------------------------------------------------------------|
-| `OPENAI_API_KEY`  | OpenAI API key (LLM calls in DeepSearch + simulation narrative)   |
-| `TAVILY_API_KEY`  | Tavily search key (optional, improves DeepSearch quality)         |
-| `SERPAPI_KEY`     | SerpAPI key (optional, fallback web search)                       |
-
-If no LLM API key is set, FRACTURE runs in **heuristic mode** — simulations complete using deterministic rules without LLM narrative generation.
-
----
-
-## Agents
-
-56 agents across 7 domains:
-
-**Conformists (37)** — defend existing rules, resist change, vote against fractures.
-**Disruptors (19)** — challenge the status quo, propose new rules, push for fractures.
-
-Each agent has:
-- `PowerWeight` — influence on voting (calibrated by feedback loop)
-- `Personality` — bias profile (risk tolerance, contrarianism, etc.)
-- `Domain` — specialization area
-- `AgentMemory` — stores past actions for behavioral consistency
-
-Agent calibration is updated automatically when you submit feedback: accurate predictions increase an archetype's weight, inaccurate ones decrease it.
+Without API keys: runs in heuristic mode (deterministic only).
 
 ---
 
-## Development
+## The 56 Agents
 
-```bash
-# Run all tests (115 tests)
-go test ./...
+37 Conformists defend the status quo. 19 Disruptors challenge and rewrite the rules.
+Agents learn from every simulation — weights adjust via JUDGE verdicts and EWC++ consolidation.
 
-# Run specific package
-go test ./engine/... -v
+---
 
-# Build packages (no dashboard embed needed)
-go build ./api/... ./engine/...
-```
+## The 6-Part Report
 
-### Adding a new domain
-
-1. Add a constant to `engine/world.go`: `DomainMyDomain RuleDomain = "mydomain"`
-2. Add a rule set function in `engine/world_domains.go`: `func myDomainRules() []*Rule { ... }`
-3. Add a case in `DefaultWorldForDomain` switch statement
-4. Add domain-specific agents in `engine/agents.go`
+| Part | Delivers |
+|---|---|
+| **1. Probable Future** | What happens if nothing changes — with probability and timeline |
+| **2. Tension Map** | Which rules are closest to breaking and why |
+| **3. Rupture Scenarios** | The 3 most likely FRACTURE POINT paths |
+| **4. Coalition Map** | Who allied with whom during the simulation |
+| **5. Timeline** | When each rupture should happen (90 days / 1 year / 3 years) |
+| **6. Action Playbook** | What you should do now to position before the break |
 
 ---
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE).
+FRACTURE is distributed under [AGPL-3.0](LICENSE).
