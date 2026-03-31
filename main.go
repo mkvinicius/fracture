@@ -103,8 +103,8 @@ func main() {
 	// Redirect any old /assets/ paths to /bundle/ (handles browsers that cached the old URL).
 	assetServer := http.FileServer(http.FS(dashSub))
 	r.Handle("/bundle/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		// Assets are content-addressed (fixed names, immutable content per build).
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
 		assetServer.ServeHTTP(w, req)
 	}))
 	r.Handle("/favicon.svg", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
