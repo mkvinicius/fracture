@@ -30,10 +30,24 @@ func (rg *ReportGenerator) callWithRetry(ctx context.Context, systemPrompt, user
 	return raw, tokens, err
 }
 
+// CompanyContext carries optional company profile data for personalized report generation.
+type CompanyContext struct {
+	Name     string // company name
+	Size     string // "pme" | "media" | "enterprise"
+	Sector   string // e.g. "food", "fintech", "healthcare"
+	Location string // e.g. "São Paulo, SP"
+}
+
 // GenerateReport produces all six result types from a SimulationResult.
-func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *SimulationResult, question string) (*FullReport, error) {
+func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *SimulationResult, question string, company ...CompanyContext) (*FullReport, error) {
 	// Prepare context summary for the LLM
 	summary := rg.buildSummary(result)
+
+	// Build company context string if provided
+	var companyCtx CompanyContext
+	if len(company) > 0 {
+		companyCtx = company[0]
+	}
 
 	probableFuture, err := rg.generateProbableFuture(ctx, question, summary)
 	if err != nil {
@@ -74,7 +88,7 @@ func (rg *ReportGenerator) GenerateReport(ctx context.Context, result *Simulatio
 	})
 
 	eg.Go(func() error {
-		p, err := rg.generateActionPlaybook(egCtx, question, summary, ruptureScenarios)
+		p, err := rg.generateActionPlaybook(egCtx, question, summary, ruptureScenarios, companyCtx)
 		if err == nil {
 			pr.actionPlaybook = p
 		}
@@ -438,7 +452,7 @@ Produce a timeline in this JSON format:
 }
 
 // generateActionPlaybook produces the strategic playbook for the user.
-func (rg *ReportGenerator) generateActionPlaybook(ctx context.Context, question, summary string, scenarios []RuptureScenario) (*ActionPlaybook, error) {
+func (rg *ReportGenerator) generateActionPlaybook(ctx context.Context, question, summary string, scenarios []RuptureScenario, company CompanyContext) (*ActionPlaybook, error) {
 	var howToBeFirst []string
 	for _, s := range scenarios {
 		if s.HowToBeFirst != "" {
@@ -446,13 +460,36 @@ func (rg *ReportGenerator) generateActionPlaybook(ctx context.Context, question,
 		}
 	}
 
+	// Build personalization block
+	var companyBlock string
+	if company.Name != "" || company.Size != "" || company.Sector != "" || company.Location != "" {
+		sizeLabel := map[string]string{
+			"pme":        "pequena/média empresa (até 200 funcionários)",
+			"media":      "empresa de médio porte (200–2000 funcionários)",
+			"enterprise": "grande empresa / corporação (2000+ funcionários)",
+		}[company.Size]
+		if sizeLabel == "" {
+			sizeLabel = company.Size
+		}
+		companyBlock = fmt.Sprintf(`
+Company profile:
+- Name: %s
+- Size: %s
+- Sector: %s
+- Location: %s
+
+Tailor the playbook specifically to this company's size, sector, and local market conditions.
+For a PME, focus on quick wins with low capital. For enterprise, focus on systemic changes and risk management.`, company.Name, sizeLabel, company.Sector, company.Location)
+	}
+
 	systemPrompt := `You are a strategic advisor creating an action playbook for a company.
 Based on the simulation results, provide concrete, actionable recommendations.
-Be specific — avoid generic advice.
+Be specific — avoid generic advice. Tailor recommendations to the company's actual size and sector.
 IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All actions, risks, and recommendations must be in Portuguese.
 Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question: %s
+%s
 
 Simulation summary:
 %s
@@ -462,12 +499,12 @@ How-to-be-first insights from rupture scenarios:
 
 Produce an action playbook in this exact JSON format:
 {
-  "horizon_90_days": ["Action 1", "Action 2", "Action 3"],
-  "horizon_1_year": ["Action 1", "Action 2", "Action 3"],
-  "horizon_3_years": ["Action 1", "Action 2"],
-  "quick_wins": ["Quick win 1", "Quick win 2"],
-  "critical_risks": ["Risk 1", "Risk 2", "Risk 3"]
-}`, question, summary, strings.Join(howToBeFirst, "\n"))
+  "horizon_90_days": ["Ação 1 específica para esta empresa", "Ação 2", "Ação 3"],
+  "horizon_1_year": ["Ação 1", "Ação 2", "Ação 3"],
+  "horizon_3_years": ["Ação 1", "Ação 2"],
+  "quick_wins": ["Vitória rápida 1 (sem custo ou baixo custo)", "Vitória rápida 2"],
+  "critical_risks": ["Risco 1 específico para este porte/setor", "Risco 2", "Risco 3"]
+}`, question, companyBlock, summary, strings.Join(howToBeFirst, "\n"))
 
 	raw, _, err := rg.callWithRetry(ctx, systemPrompt, userPrompt, 800)
 	if err != nil {

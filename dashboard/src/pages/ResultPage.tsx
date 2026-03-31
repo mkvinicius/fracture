@@ -53,13 +53,50 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
   const [report, setReport] = useState<FullReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [injectText, setInjectText] = useState('')
+  const [injecting, setInjecting] = useState(false)
+  const [injectStatus, setInjectStatus] = useState<string | null>(null)
+  const [simStatus, setSimStatus] = useState<string>('done')
 
   useEffect(() => {
     fetch(`/api/v1/simulations/${simId}/report`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => { setReport(d); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
+    // Check sim status for God View
+    fetch(`/api/v1/simulations/${simId}`)
+      .then(r => r.json()).then(d => setSimStatus(d.status || 'done')).catch(() => {})
   }, [simId])
+
+  async function handleShare() {
+    setSharing(true)
+    try {
+      const res = await fetch(`/api/v1/simulations/${simId}/share`, { method: 'POST' })
+      const data = await res.json()
+      if (data.token) {
+        const url = `${window.location.origin}/share/${data.token}`
+        setShareUrl(url)
+        navigator.clipboard?.writeText(url)
+      }
+    } catch { /* ignore */ } finally { setSharing(false) }
+  }
+
+  async function handleInject() {
+    if (!injectText.trim()) return
+    setInjecting(true)
+    setInjectStatus(null)
+    try {
+      const res = await fetch(`/api/v1/simulations/${simId}/inject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: injectText })
+      })
+      if (res.ok) { setInjectStatus('Evento injetado — agentes reagirão na próxima rodada'); setInjectText('') }
+      else { const d = await res.json(); setInjectStatus(`Erro: ${d.error}`) }
+    } catch { setInjectStatus('Erro ao injetar evento') } finally { setInjecting(false) }
+  }
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--color-text-muted)' }}>
@@ -91,9 +128,13 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
               {report.total_tokens.toLocaleString()} tokens · {(report.duration_ms / 1000).toFixed(1)}s · {report.watermark.version}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
             <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
+            <button onClick={handleShare} disabled={sharing}
+              style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {sharing ? '...' : '🔗 Compartilhar'}
+            </button>
             <button
               onClick={() => onNavigate('feedback', simId)}
               style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -102,6 +143,35 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
             </button>
           </div>
         </div>
+        {/* Share URL toast */}
+        {shareUrl && (
+          <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'oklch(0.65 0.22 30 / 0.1)', border: '1px solid oklch(0.65 0.22 30 / 0.3)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: 'var(--color-success)' }}>✓ Link copiado:</span>
+            <code style={{ color: 'var(--color-text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shareUrl}</code>
+            <button onClick={() => setShareUrl(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>✕</button>
+          </div>
+        )}
+        {/* God View panel — only shown when sim is running */}
+        {simStatus === 'running' && (
+          <div style={{ marginTop: '16px', padding: '16px', borderRadius: '10px', border: '1px solid oklch(0.75 0.18 55 / 0.5)', background: 'oklch(0.75 0.18 55 / 0.05)' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: 'oklch(0.75 0.18 55)', marginBottom: '10px' }}>⚡ God View — Injetar Evento</div>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '10px' }}>Injete um evento externo agora. Os agentes reagirão na próxima rodada.</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={injectText}
+                onChange={e => setInjectText(e.target.value)}
+                placeholder='ex: "O governo anunciou taxação de 15% em delivery"'
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'var(--color-surface-2)', color: 'var(--color-text)', fontSize: '13px', outline: 'none' }}
+                onKeyDown={e => e.key === 'Enter' && handleInject()}
+              />
+              <button onClick={handleInject} disabled={injecting || !injectText.trim()}
+                style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', background: 'oklch(0.75 0.18 55)', color: '#000', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                {injecting ? '...' : 'Injetar'}
+              </button>
+            </div>
+            {injectStatus && <div style={{ marginTop: '8px', fontSize: '12px', color: injectStatus.startsWith('Erro') ? 'var(--color-danger)' : 'var(--color-success)' }}>{injectStatus}</div>}
+          </div>
+        )}
       </div>
 
       {/* Ensemble badge (Premium) */}

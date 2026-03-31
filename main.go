@@ -75,6 +75,28 @@ func main() {
 	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger, tel)
 	r.Mount("/api/v1", apiHandler.Routes())
 
+	// ── Scheduler: run due scheduled simulations every 5 minutes ────────────────
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				due, err := database.GetDueScheduledSims()
+				if err != nil || len(due) == 0 {
+					continue
+				}
+				for _, s := range due {
+					log.Info().Str("schedule_id", s.ID).Str("question", s.Question[:min(60, len(s.Question))]).Msg("running scheduled simulation")
+					apiHandler.RunScheduledSim(s)
+					_ = database.MarkScheduledSimRan(s.ID, s.IntervalH)
+				}
+			}
+		}
+	}()
+
 	// Backward compat: redirect /api/<path> → /api/v1/<path> (308 preserves method)
 	r.HandleFunc("/api/*", func(w http.ResponseWriter, req *http.Request) {
 		suffix := strings.TrimPrefix(req.URL.Path, "/api")
@@ -167,6 +189,13 @@ func main() {
 		log.Error().Err(err).Msg("shutdown error")
 	}
 	log.Info().Msg("FRACTURE stopped")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // isHashedAsset returns true for Vite content-hashed filenames like "index-DKsY0a-L.js".

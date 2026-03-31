@@ -11,9 +11,12 @@ import FeedbackPage from './pages/FeedbackPage'
 import ComparisonPage from './pages/ComparisonPage'
 import ConvergencePage from './pages/ConvergencePage'
 import OnboardingWizard from './components/OnboardingWizard'
+import SchedulesPage from './pages/SchedulesPage'
+import AccuracyPage from './pages/AccuracyPage'
+import APIKeysPage from './pages/APIKeysPage'
 import { useOnboarding } from './hooks/useOnboarding'
 
-export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence'
+export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence' | 'schedules' | 'accuracy' | 'api-keys'
 
 type UpdateInfo = {
   has_update: boolean
@@ -119,6 +122,9 @@ function App() {
       case 'feedback': return <FeedbackPage simId={selectedSimId} onNavigate={navigate} />
       case 'comparison': return <ComparisonPage simIds={selectedSimIds} onNavigate={navigate} />
       case 'convergence': return <ConvergencePage simId={selectedSimId} onNavigate={navigate} />
+      case 'schedules': return <SchedulesPage onNavigate={navigate} />
+      case 'accuracy': return <AccuracyPage onNavigate={navigate} />
+      case 'api-keys': return <APIKeysPage onNavigate={navigate} />
       default: return <HomePage onNavigate={navigate} />
     }
   }

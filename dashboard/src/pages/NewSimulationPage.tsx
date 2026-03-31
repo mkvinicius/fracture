@@ -10,6 +10,12 @@ const TEMPLATES = [
 
 const DEPARTMENTS = ['Marketing', 'HR', 'Finance', 'Product', 'Sales', 'Operations', 'Strategy']
 const ROUNDS = [10, 15, 20, 30, 40]
+const COMPANY_SIZES = [
+  { value: '', label: 'Não especificado' },
+  { value: 'pme', label: 'PME — até 200 funcionários' },
+  { value: 'media', label: 'Média empresa — 200–2.000' },
+  { value: 'enterprise', label: 'Enterprise — 2.000+' },
+]
 
 const URL_PLACEHOLDERS: Record<string, string> = {
   website:   'https://yourcompany.com',
@@ -41,6 +47,9 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
   const [simPhase, setSimPhase] = useState<'idle' | 'researching' | 'running'>('idle')
   const [researchSources, setResearchSources] = useState(0)
   const [error, setError] = useState('')
+  const [companySize, setCompanySize] = useState('')
+  const [companySector, setCompanySector] = useState('')
+  const [companyLocation, setCompanyLocation] = useState('')
   const [showUrlSection, setShowUrlSection] = useState(false)
   const [extracting, setExtracting] = useState(false)
   const [extractedSummary, setExtractedSummary] = useState('')
@@ -98,7 +107,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
       const res = await fetch('/api/v1/simulations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, department, rounds, context, urls })
+        body: JSON.stringify({ question, department, rounds, context, urls, company_size: companySize, company_sector: companySector, company_location: companyLocation })
       })
       const data = await res.json()
       if (data.id) {
@@ -172,6 +181,29 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
           <select style={{ ...Input }} value={rounds} onChange={e => setRounds(Number(e.target.value))}>
             {ROUNDS.map(r => <option key={r} value={r}>{r} rodadas (~{Math.round(r * 1.5)}s)</option>)}
           </select>
+        </div>
+      </div>
+
+      {/* Company Profile Section */}
+      <div style={{ marginBottom: '20px', padding: '16px', borderRadius: '10px', border: '1px solid var(--color-border)', background: 'var(--color-surface-2)' }}>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '12px' }}>
+          Perfil da Empresa <span style={{ fontWeight: '400', textTransform: 'none' }}>(opcional — personaliza o playbook de ações)</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Porte</label>
+            <select style={{ ...Input }} value={companySize} onChange={e => setCompanySize(e.target.value)}>
+              {COMPANY_SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Setor / Indústria</label>
+            <input style={{ ...Input }} value={companySector} onChange={e => setCompanySector(e.target.value)} placeholder="ex: foodtech, saúde, varejo..." />
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'block', marginBottom: '6px' }}>Localização</label>
+            <input style={{ ...Input }} value={companyLocation} onChange={e => setCompanyLocation(e.target.value)} placeholder="ex: São Paulo, SP" />
+          </div>
         </div>
       </div>
 

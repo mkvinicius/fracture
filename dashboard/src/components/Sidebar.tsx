@@ -4,7 +4,10 @@ const nav = [
   { id: 'home',           label: 'Dashboard',       icon: '⬡' },
   { id: 'new-simulation', label: 'Nova Simulação',   icon: '◈' },
   { id: 'simulations',    label: 'Histórico',        icon: '◎' },
+  { id: 'schedules',      label: 'Agendamentos',     icon: '⏱' },
+  { id: 'accuracy',       label: 'Acurácia',         icon: '◉' },
   { id: 'archetypes',     label: 'Arquétipos',       icon: '◇' },
+  { id: 'api-keys',       label: 'API Pública',      icon: '⌘' },
   { id: 'settings',       label: 'Configurações',    icon: '⚙' },
 ] as const
 

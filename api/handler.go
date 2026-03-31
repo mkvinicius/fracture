@@ -53,6 +53,9 @@ type simJob struct {
 	ResearchSources int    `json:"research_sources,omitempty"` // web sources found by DeepSearch
 	ResearchTokens  int    `json:"research_tokens,omitempty"`  // tokens used by DeepSearch
 	Company         string `json:"company,omitempty"`
+	CompanySize     string `json:"company_size,omitempty"`     // pme | media | enterprise
+	CompanySector   string `json:"company_sector,omitempty"`
+	CompanyLocation string `json:"company_location,omitempty"`
 	// Live progress fields — updated after each round, streamed via SSE
 	CurrentRound    int     `json:"current_round,omitempty"`     // last completed round number
 	CurrentTension  float64 `json:"current_tension,omitempty"`   // tension level after last round
@@ -60,6 +63,8 @@ type simJob struct {
 	LastAgentName   string  `json:"last_agent_name,omitempty"`   // name of last agent to act
 	LastAgentAction string  `json:"last_agent_action,omitempty"` // truncated text of last action
 	TotalTokens     int     `json:"total_tokens,omitempty"`      // cumulative tokens used
+	// God View: channel for injecting live events into a running simulation
+	injectCh        chan string `json:"-"`
 }
 
 // NewHandler creates a new API Handler.
@@ -188,6 +193,29 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/simulations/{id}/export/json", h.exportJSON)
 	r.Get("/simulations/{id}/events", h.getSimulationEvents)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
+
+	// Share link (public, no auth)
+	r.Post("/simulations/{id}/share", h.createShareLink)
+	r.Get("/share/{token}", h.getSharedReport)
+
+	// God View — inject event into running simulation
+	r.Post("/simulations/{id}/inject", h.injectEvent)
+
+	// Prediction outcome tracking (accuracy)
+	r.Get("/simulations/{id}/outcomes", h.getOutcomes)
+	r.Post("/simulations/{id}/outcomes", h.saveOutcome)
+	r.Get("/accuracy", h.getAccuracy)
+
+	// Scheduled simulations
+	r.Get("/schedules", h.listSchedules)
+	r.Post("/schedules", h.createSchedule)
+	r.Delete("/schedules/{id}", h.deleteSchedule)
+	r.Patch("/schedules/{id}", h.toggleSchedule)
+
+	// Public API keys management
+	r.Get("/api-keys", h.listAPIKeys)
+	r.Post("/api-keys", h.createAPIKey)
+	r.Delete("/api-keys/{id}", h.deleteAPIKey)
 
 	// Quick pulse (fast tension check, no full simulation)
 	r.Post("/pulse", h.quickPulse)
@@ -415,12 +443,15 @@ func (h *Handler) validateKey(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Question   string   `json:"question"`
-		Department string   `json:"department"`
-		Rounds     int      `json:"rounds"`
-		Mode       string   `json:"mode"`
-		Context    string   `json:"context"`
-		URLs       []string `json:"urls"` // optional: company website + social media URLs
+		Question        string   `json:"question"`
+		Department      string   `json:"department"`
+		Rounds          int      `json:"rounds"`
+		Mode            string   `json:"mode"`
+		Context         string   `json:"context"`
+		URLs            []string `json:"urls"`             // optional: company website + social media URLs
+		CompanySize     string   `json:"company_size"`     // pme | media | enterprise
+		CompanySector   string   `json:"company_sector"`
+		CompanyLocation string   `json:"company_location"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -485,6 +516,10 @@ func (h *Handler) createSimulation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	job.Company = companyName
+	job.CompanySize = body.CompanySize
+	job.CompanySector = body.CompanySector
+	job.CompanyLocation = body.CompanyLocation
+	job.injectCh = make(chan string, 8)
 
 	h.simMu.Lock()
 	h.simJobs[job.ID] = job
@@ -737,6 +772,19 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 			if runIdx == 0 {
 				// Only persist rounds for the primary run
 				h.persistRound(job.ID, rr)
+				// God View: drain injected events into world evidence
+				if job.injectCh != nil {
+					for {
+						select {
+						case ev := <-job.injectCh:
+							runCfg.World.InjectEvent(ev)
+							log.Printf("[FRACTURE] God View event injected into sim %s: %s", job.ID, ev[:min(80, len(ev))])
+						default:
+							goto drained
+						}
+					}
+				drained:
+				}
 			}
 		}
 		res := sim.Finalize()
@@ -762,7 +810,12 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 	reportGenID := uuid.New().String()
 	reportStart := time.Now()
 	_ = h.db.StartReportGen(reportGenID, job.ID, "full")
-	report, reportErr := rg.GenerateReport(ctx, &result, job.Question)
+	report, reportErr := rg.GenerateReport(ctx, &result, job.Question, engine.CompanyContext{
+		Name:     job.Company,
+		Size:     job.CompanySize,
+		Sector:   job.CompanySector,
+		Location: job.CompanyLocation,
+	})
 	reportDurationMs := time.Since(reportStart).Milliseconds()
 	if reportErr != nil {
 		log.Printf("[FRACTURE] ReportGenerator error for sim %s: %v", job.ID, reportErr)

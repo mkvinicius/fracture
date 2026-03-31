@@ -160,6 +160,18 @@ func (w *World) ToJSON() (string, error) {
 	return string(b), err
 }
 
+// InjectEvent appends an external event to the world's Evidence field (God View).
+// Agents read Evidence in their prompts, so this affects next-round decisions.
+func (w *World) InjectEvent(event string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.Evidence == "" {
+		w.Evidence = "[EVENTO INJETADO]: " + event
+	} else {
+		w.Evidence += "\n[EVENTO INJETADO]: " + event
+	}
+}
+
 // MostTenseRules returns the top N rules by tension level.
 func (w *World) MostTenseRules(n int) []*Rule {
 	w.mu.RLock()
