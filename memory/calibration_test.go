@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/glebarez/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // openCalibrationTestDB creates a temp SQLite DB with the tables needed by Calibrator.
@@ -18,7 +18,7 @@ func openCalibrationTestDB(t *testing.T) *sql.DB {
 	}
 	f.Close()
 
-	db, err := sql.Open("sqlite3", f.Name()+"?_foreign_keys=off")
+	db, err := sql.Open("sqlite", f.Name()+"?_foreign_keys=off")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

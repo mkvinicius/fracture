@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/glebarez/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func openRAGTestDB(t *testing.T) *sql.DB {
@@ -18,7 +18,7 @@ func openRAGTestDB(t *testing.T) *sql.DB {
 	}
 	f.Close()
 
-	db, err := sql.Open("sqlite3", f.Name()+"?_foreign_keys=off")
+	db, err := sql.Open("sqlite", f.Name()+"?_foreign_keys=off")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	_ "github.com/glebarez/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed schema.sql
@@ -57,7 +57,7 @@ func Open() (*DB, error) {
 	}
 
 	dbPath := filepath.Join(dir, "data.db")
-	sqlDB, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_foreign_keys=on")
+	sqlDB, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_foreign_keys=on")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}

@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/uuid v1.6.0
-	github.com/glebarez/go-sqlite3 v1.11.0
+	modernc.org/sqlite v1.33.1
 	github.com/rs/zerolog v1.34.0
 	golang.org/x/net v0.52.0
 )

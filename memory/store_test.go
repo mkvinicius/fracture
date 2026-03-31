@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/fracture/fracture/engine"
-	_ "github.com/glebarez/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // openTestDB creates a temp SQLite DB with the minimal schema needed by Store.
@@ -18,7 +18,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	}
 	f.Close()
 
-	db, err := sql.Open("sqlite3", f.Name()+"?_foreign_keys=off")
+	db, err := sql.Open("sqlite", f.Name()+"?_foreign_keys=off")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
