@@ -4,23 +4,31 @@ chcp 65001 >nul 2>&1
 title FRACTURE Installer
 
 :: ============================================================
-:: AUTO-ELEVACAO: reinicia como Administrador se nao for admin
+:: AUTO-ELEVACAO: reinicia como Administrador automaticamente
 :: ============================================================
 net session >nul 2>&1
 if errorlevel 1 (
-    echo Solicitando permissao de Administrador...
     powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
     exit /b
 )
 
+cls
 echo.
 echo  ================================================
 echo    FRACTURE - Instalador Automatico Windows
 echo  ================================================
 echo.
+echo  Este instalador vai:
+echo    1. Instalar Go (se necessario)
+echo    2. Instalar Git (se necessario)
+echo    3. Baixar/atualizar o FRACTURE
+echo    4. Compilar e iniciar automaticamente
+echo.
+echo  Aguarde cada etapa concluir...
+echo.
 
 :: ============================================================
-:: PASSO 1 - INSTALAR GO
+:: PASSO 1 - GO
 :: ============================================================
 go version >nul 2>&1
 if not errorlevel 1 (
@@ -30,36 +38,36 @@ if not errorlevel 1 (
 
 echo [1/4] Instalando Go...
 
-:: Tenta winget primeiro (Windows 10/11 nativo, sem SSL issue)
+:: Tenta winget (Windows 10/11)
 winget --version >nul 2>&1
 if not errorlevel 1 (
     winget install GoLang.Go --silent --accept-package-agreements --accept-source-agreements
-    goto :reload_go_path
+    :: Recarrega PATH
+    for /f "skip=2 tokens=*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "NEWPATH=%%A"
+    set "PATH=!NEWPATH:~10!;C:\Program Files\Go\bin"
+    go version >nul 2>&1
+    if not errorlevel 1 goto :check_git
 )
 
-:: Fallback: bitsadmin (built-in, ignora SSL corporativo)
-echo     Usando bitsadmin para download...
-bitsadmin /transfer "FRACTUREGoDownload" /priority FOREGROUND ^
+:: Fallback: bitsadmin
+echo     Baixando instalador do Go...
+bitsadmin /transfer "GoDownload" /priority FOREGROUND ^
     "https://go.dev/dl/go1.24.0.windows-amd64.msi" ^
     "%TEMP%\go-fracture.msi" >nul 2>&1
 
 if not exist "%TEMP%\go-fracture.msi" (
-    :: Ultimo fallback: PowerShell com SSL bypass
-    powershell -Command ^
-        "[Net.ServicePointManager]::ServerCertificateValidationCallback={$true}; ^
-         (New-Object Net.WebClient).DownloadFile('https://go.dev/dl/go1.24.0.windows-amd64.msi','%TEMP%\go-fracture.msi')"
+    powershell -Command "[Net.ServicePointManager]::ServerCertificateValidationCallback={$true}; (New-Object Net.WebClient).DownloadFile('https://go.dev/dl/go1.24.0.windows-amd64.msi','%TEMP%\go-fracture.msi')"
 )
 
 if not exist "%TEMP%\go-fracture.msi" (
     echo.
     echo [ERRO] Nao foi possivel baixar o Go automaticamente.
     echo.
-    echo  Solucao manual (2 minutos):
-    echo  1. Abra o navegador
-    echo  2. Acesse: https://go.dev/dl
-    echo  3. Baixe: go1.24.0.windows-amd64.msi
-    echo  4. Instale dando duplo clique
-    echo  5. Execute este instalador novamente
+    echo  Instale manualmente (2 minutos):
+    echo    1. Abra o navegador
+    echo    2. Acesse: https://go.dev/dl
+    echo    3. Baixe go1.24.0.windows-amd64.msi
+    echo    4. Instale e execute este arquivo novamente
     echo.
     pause
     exit /b 1
@@ -67,37 +75,19 @@ if not exist "%TEMP%\go-fracture.msi" (
 
 msiexec /i "%TEMP%\go-fracture.msi" /quiet /norestart
 del "%TEMP%\go-fracture.msi" >nul 2>&1
-
-:reload_go_path
-:: Recarrega PATH do registro para este processo
-for /f "skip=2 tokens=3*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%A %%B"
-set "PATH=%SYSPATH%;C:\Program Files\Go\bin"
+set "PATH=%PATH%;C:\Program Files\Go\bin"
 
 go version >nul 2>&1
 if errorlevel 1 (
-    set "PATH=%PATH%;C:\Program Files\Go\bin"
-    go version >nul 2>&1
-    if errorlevel 1 (
-        echo [AVISO] Go instalado mas requer reinicio do terminal.
-        echo Fechando e reabrindo automaticamente...
-        :: Cria script temporario para continuar apos nova sessao
-        echo @echo off > "%TEMP%\fracture-continue.bat"
-        echo set PATH=%%PATH%%;C:\Program Files\Go\bin >> "%TEMP%\fracture-continue.bat"
-        echo cd /d "%USERPROFILE%\fracture" >> "%TEMP%\fracture-continue.bat"
-        echo go build -o fracture.exe . >> "%TEMP%\fracture-continue.bat"
-        echo if errorlevel 1 pause >> "%TEMP%\fracture-continue.bat"
-        echo start "" fracture.exe >> "%TEMP%\fracture-continue.bat"
-        echo timeout /t 3 /nobreak ^>nul >> "%TEMP%\fracture-continue.bat"
-        echo start http://localhost:4000 >> "%TEMP%\fracture-continue.bat"
-        echo del "%%~f0" >> "%TEMP%\fracture-continue.bat"
-        start cmd /k "%TEMP%\fracture-continue.bat"
-        exit /b
-    )
+    echo [AVISO] Go instalado. Abrindo nova janela para continuar...
+    start cmd /k "set PATH=%PATH%;C:\Program Files\Go\bin && cd /d %~dp0 && %~f0"
+    exit /b
 )
+
 echo [OK] Go instalado.
 
 :: ============================================================
-:: PASSO 2 - INSTALAR GIT
+:: PASSO 2 - GIT
 :: ============================================================
 :check_git
 git --version >nul 2>&1
@@ -114,7 +104,7 @@ if not errorlevel 1 (
     goto :clone_repo
 )
 
-bitsadmin /transfer "FRACTUREGitDownload" /priority FOREGROUND ^
+bitsadmin /transfer "GitDownload" /priority FOREGROUND ^
     "https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/Git-2.44.0-64-bit.exe" ^
     "%TEMP%\git-fracture.exe" >nul 2>&1
 
@@ -123,15 +113,15 @@ if exist "%TEMP%\git-fracture.exe" (
     set "PATH=%PATH%;C:\Program Files\Git\cmd"
     del "%TEMP%\git-fracture.exe" >nul 2>&1
 ) else (
-    echo [ERRO] Nao foi possivel instalar Git automaticamente.
-    echo Baixe em: https://git-scm.com/download/win
+    echo [ERRO] Nao foi possivel instalar o Git.
+    echo Baixe em: https://git-scm.com/download/win e execute novamente.
     pause
     exit /b 1
 )
 echo [OK] Git instalado.
 
 :: ============================================================
-:: PASSO 3 - CLONAR OU ATUALIZAR REPOSITORIO
+:: PASSO 3 - CLONAR OU ATUALIZAR
 :: ============================================================
 :clone_repo
 echo [3/4] Baixando FRACTURE...
@@ -141,79 +131,35 @@ if exist "%USERPROFILE%\fracture\.git" (
 ) else (
     git clone https://github.com/mkvinicius/fracture.git "%USERPROFILE%\fracture"
     if errorlevel 1 (
-        echo [ERRO] Falha ao clonar repositorio.
+        echo [ERRO] Falha ao baixar o FRACTURE. Verifique sua conexao com a internet.
         pause
         exit /b 1
     )
-    cd /d "%USERPROFILE%\fracture"
 )
+cd /d "%USERPROFILE%\fracture"
 echo [OK] Codigo atualizado.
 
 :: ============================================================
-:: PASSO 4 - CONFIGURAR CGO (necessario para SQLite)
-:: ============================================================
-:: go-sqlite3 requer CGO e um compilador C.
-:: Git for Windows ja inclui GCC — detecta automaticamente.
-set "CGO_ENABLED=1"
-set "CC="
-
-if exist "C:\Program Files\Git\mingw64\bin\gcc.exe" (
-    set "CC=C:\PROGRA~1\Git\mingw64\bin\gcc.exe"
-    goto :build
-)
-if exist "C:\Program Files\Git\usr\bin\gcc.exe" (
-    set "CC=C:\PROGRA~1\Git\usr\bin\gcc.exe"
-    goto :build
-)
-:: Tenta MinGW standalone
-if exist "C:\mingw64\bin\gcc.exe" (
-    set "CC=C:\mingw64\bin\gcc.exe"
-    set "PATH=%PATH%;C:\mingw64\bin"
-    goto :build
-)
-if exist "C:\TDM-GCC-64\bin\gcc.exe" (
-    set "CC=C:\TDM-GCC-64\bin\gcc.exe"
-    set "PATH=%PATH%;C:\TDM-GCC-64\bin"
-    goto :build
-)
-:: Tenta gcc no PATH
-where gcc >nul 2>&1
-if not errorlevel 1 goto :build
-
-:: Instala TDM-GCC via winget se disponivel
-winget --version >nul 2>&1
-if not errorlevel 1 (
-    echo [INFO] Instalando compilador C (TDM-GCC)...
-    winget install tdm-gcc.tdm-gcc --silent --accept-package-agreements --accept-source-agreements
-    set "PATH=%PATH%;C:\TDM-GCC-64\bin"
-)
-
-:build
-:: ============================================================
-:: PASSO 5 - COMPILAR
+:: PASSO 4 - DEPENDENCIAS + COMPILAR
 :: ============================================================
 echo [4/4] Compilando FRACTURE...
 cd /d "%USERPROFILE%\fracture"
-if defined CC (
-    "%CC%" --version >nul 2>&1 && (
-        go build -o fracture.exe .
-    ) || (
-        set "CC="
-        go build -o fracture.exe .
-    )
-) else (
-    go build -o fracture.exe .
+
+:: go mod tidy baixa dependencias (incluindo modernc.org/sqlite - puro Go, sem GCC)
+go mod tidy
+if errorlevel 1 (
+    echo [AVISO] go mod tidy com aviso, tentando compilar mesmo assim...
 )
+
+go build -o fracture.exe .
 if errorlevel 1 (
     echo.
     echo [ERRO] Falha na compilacao.
     echo.
-    echo  O FRACTURE usa SQLite e precisa de um compilador C.
-    echo  Solucao mais rapida:
-    echo    1. Abra o PowerShell como Admin e execute:
-    echo       winget install tdm-gcc.tdm-gcc
-    echo    2. Feche e abra um novo CMD como Admin
-    echo    3. Execute este instalador novamente
+    echo  Tente manualmente:
+    echo    cd %USERPROFILE%\fracture
+    echo    go mod tidy
+    echo    go build -o fracture.exe .
     echo.
     pause
     exit /b 1
@@ -223,12 +169,8 @@ echo [OK] Compilado com sucesso.
 :: ============================================================
 :: ATALHO NA AREA DE TRABALHO
 :: ============================================================
-powershell -Command ^
-    "$ws=New-Object -ComObject WScript.Shell; ^
-     $s=$ws.CreateShortcut('%USERPROFILE%\Desktop\FRACTURE.lnk'); ^
-     $s.TargetPath='%USERPROFILE%\fracture\fracture.exe'; ^
-     $s.WorkingDirectory='%USERPROFILE%\fracture'; ^
-     $s.Save()"
+powershell -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut('%USERPROFILE%\Desktop\FRACTURE.lnk'); $s.TargetPath='%USERPROFILE%\fracture\fracture.exe'; $s.WorkingDirectory='%USERPROFILE%\fracture'; $s.Save()"
+echo [OK] Atalho criado na area de trabalho.
 
 :: ============================================================
 :: INICIAR
@@ -238,11 +180,14 @@ echo  ================================================
 echo    FRACTURE instalado com sucesso!
 echo  ================================================
 echo.
-echo  Iniciando...
+echo  Iniciando FRACTURE...
 echo.
 
 start "" "%USERPROFILE%\fracture\fracture.exe"
 timeout /t 3 /nobreak >nul
 start http://localhost:4000
 
+echo  Abra o navegador em: http://localhost:4000
+echo  Atalho salvo na area de trabalho.
+echo.
 pause
