@@ -18,6 +18,42 @@ When tension accumulates and pressure explodes, a **FRACTURE POINT** occurs: a f
 
 ---
 
+## ⚡ Quick Install / Instalação Rápida
+
+**English:**
+Download and double-click the installer for your system — no terminal required.
+
+| System | Download | Instructions |
+|---|---|---|
+| **Windows** | [`install-windows.bat`](install-windows.bat) | Right-click → Run as administrator |
+| **macOS** | [`install-mac.sh`](install-mac.sh) | Double-click → Allow execution |
+| **Linux** | See below | Terminal required |
+
+The installer will automatically:
+- Check and install Go if missing
+- Clone and build FRACTURE
+- Create a desktop shortcut
+- Open the dashboard in your browser
+
+---
+
+**Português:**
+Baixe e clique duas vezes no instalador para o seu sistema — sem terminal necessário.
+
+| Sistema | Download | Instruções |
+|---|---|---|
+| **Windows** | [`install-windows.bat`](install-windows.bat) | Clique direito → Executar como administrador |
+| **macOS** | [`install-mac.sh`](install-mac.sh) | Clique duplo → Permitir execução |
+| **Linux** | Veja abaixo | Requer terminal |
+
+O instalador faz automaticamente:
+- Verifica e instala Go se necessário
+- Clona e compila o FRACTURE
+- Cria atalho na área de trabalho
+- Abre o dashboard no navegador
+
+---
+
 ## How it works
 ```
 1. You ask a strategic question
