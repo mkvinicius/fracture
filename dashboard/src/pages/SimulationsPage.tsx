@@ -7,6 +7,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
   const [sims, setSims] = useState<Sim[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d ?? []); setLoading(false) }).catch(() => setLoading(false))
@@ -20,6 +21,21 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
     return next
   })
 
+  async function deleteSim(id: string) {
+    setDeleting(prev => new Set(prev).add(id))
+    try {
+      await fetch(`/api/v1/simulations/${id}`, { method: 'DELETE' })
+      setSims(prev => prev.filter(s => s.id !== id))
+      setSelected(prev => { const next = new Set(prev); next.delete(id); return next })
+    } catch { /* ignore */ }
+    setDeleting(prev => { const next = new Set(prev); next.delete(id); return next })
+  }
+
+  async function deleteSelected() {
+    if (!window.confirm(`Excluir ${selectedArr.length} simulação(ões) selecionada(s)? Esta ação não pode ser desfeita.`)) return
+    await Promise.all(selectedArr.map(id => deleteSim(id)))
+  }
+
   const selectedArr = Array.from(selected)
   const canCompare = selectedArr.length >= 2 && selectedArr.length <= 5
 
@@ -31,6 +47,14 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
           <p style={{ margin: '6px 0 0', color: 'var(--color-text-muted)', fontSize: '13px' }}>Todas as simulações passadas e em andamento</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          {selectedArr.length > 0 && (
+            <button
+              onClick={deleteSelected}
+              style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-danger)', background: 'transparent', color: 'var(--color-danger)', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+            >
+              Excluir Selecionadas ({selectedArr.length})
+            </button>
+          )}
           {canCompare && (
             <button
               onClick={() => onNavigate('comparison', undefined, selectedArr)}
@@ -95,6 +119,14 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
                     </button>
                   </>
                 )}
+                <button
+                  onClick={() => { if (window.confirm('Excluir esta simulação? Esta ação não pode ser desfeita.')) deleteSim(sim.id) }}
+                  disabled={deleting.has(sim.id)}
+                  title="Excluir simulação"
+                  style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid var(--color-danger)', background: 'transparent', color: 'var(--color-danger)', fontSize: '12px', cursor: 'pointer', opacity: deleting.has(sim.id) ? 0.4 : 1 }}
+                >
+                  {deleting.has(sim.id) ? '...' : '✕'}
+                </button>
               </div>
             </div>
           ))}
