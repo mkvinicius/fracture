@@ -23,10 +23,18 @@ export default function SettingsPage() {
     const key = keys[provider]
     if (!key?.trim()) return
     setSaving(true)
-    await fetch('/api/v1/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      const res = await fetch('/api/v1/keys/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, key: key.trim() }) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      // Reload config so "Conectado" badge appears immediately
+      fetch('/api/v1/config').then(r => r.json()).then(setConfig).catch(() => {})
+    } catch (e: unknown) {
+      alert(`Erro ao salvar chave: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function toggleTelemetry() {
@@ -153,7 +161,7 @@ export default function SettingsPage() {
       <div style={{ background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-border)', padding: '24px' }}>
         <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--color-text)', marginBottom: '4px' }}>Sobre o FRACTURE</div>
         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', lineHeight: '1.7' }}>
-          FRACTURE v1.1.0 · Construído em Go + React<br/>
+          FRACTURE v2.6.0 · Construído em Go + React<br/>
           Dados armazenados localmente em SQLite · Sem dependência de nuvem
         </div>
       </div>

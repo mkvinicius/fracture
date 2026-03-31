@@ -641,9 +641,10 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 	if err != nil {
 		h.simMu.Lock()
 		job.Status = "error"
-		job.Error = "no LLM keys configured — add at least one API key in Settings"
+		job.Error = fmt.Sprintf("LLM router error: %v — add at least one API key in Settings", err)
 		h.persistJob(job)
 		h.simMu.Unlock()
+		log.Printf("[FRACTURE] buildLLMRouter failed for sim %s: %v", job.ID, err)
 		return
 	}
 
@@ -698,12 +699,17 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		jobMode = engine.ModeStandard
 	}
 	jobModeCfg := engine.DefaultConfigForMode(jobMode)
+	// Use user-specified rounds if provided and within range, otherwise fall back to mode default
+	maxRounds := job.Rounds
+	if maxRounds <= 0 || maxRounds > 200 {
+		maxRounds = jobModeCfg.MaxRounds
+	}
 
 	cfg := engine.SimulationConfig{
 		ID:         job.ID,
 		Question:   job.Question,
 		Department: job.Department,
-		MaxRounds:  jobModeCfg.MaxRounds,
+		MaxRounds:  maxRounds,
 		Agents:     agents,
 		World:      world,
 		Memory:     memStore,
