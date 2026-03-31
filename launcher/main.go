@@ -42,7 +42,7 @@ func main() {
 	var btnStart, btnStop, btnOpen *widget.Button
 
 	btnOpen = widget.NewButton("Abrir Dashboard", func() {
-		openBrowser("http://localhost:3000")
+		openBrowser("http://localhost:4000")
 	})
 	btnOpen.Disable()
 
@@ -80,7 +80,7 @@ func main() {
 
 			statusDot.FillColor = theme.SuccessColor()
 			statusDot.Refresh()
-			statusLabel.SetText("Rodando em localhost:3000")
+			statusLabel.SetText("Rodando em localhost:4000")
 			btnStop.Enable()
 			btnOpen.Enable()
 		}()
