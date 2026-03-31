@@ -341,6 +341,7 @@ func (a *Agent) synthesizeRound(ctx context.Context, question string, results []
 	}
 
 	system := `You are a strategic market intelligence analyst. Synthesize the search results into key findings relevant to the research question. Be concise and factual.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All text content must be in Portuguese.
 
 Return a JSON object with:
 {
@@ -402,6 +403,7 @@ func (a *Agent) finalSynthesis(ctx context.Context, report *ContextReport, allFi
 	}
 
 	system := `You are a senior strategic analyst. Based on research findings, produce a structured market intelligence report.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All text content must be in Portuguese.
 
 Return a JSON object with these exact fields:
 {
@@ -850,7 +852,7 @@ func (a *Agent) synthesizeDomainFindings(ctx context.Context, domain, question s
 		domain, question, strings.Join(queries, "; "),
 	)
 
-	findings, tokens, err := a.llm.Call(ctx, "You are a domain expert synthesizing research findings.", prompt, 500)
+	findings, tokens, err := a.llm.Call(ctx, "You are a domain expert synthesizing research findings. IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR).", prompt, 500)
 	return findings, tokens, err
 }
 
@@ -861,7 +863,7 @@ func (a *Agent) identifyGaps(ctx context.Context, domain, question string, findi
 		question, domain, strings.Join(findings, "\n"),
 	)
 
-	response, tokens, err := a.llm.Call(ctx, "You are a research analyst identifying gaps.", prompt, 300)
+	response, tokens, err := a.llm.Call(ctx, "You are a research analyst identifying gaps. IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR).", prompt, 300)
 	if err != nil {
 		return nil, tokens, err
 	}

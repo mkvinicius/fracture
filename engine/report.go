@@ -269,6 +269,7 @@ func (rg *ReportGenerator) generateProbableFuture(ctx context.Context, question,
 	systemPrompt := `You are a strategic analyst synthesizing a market simulation.
 Your task: produce a structured "Probable Future" report based on simulation results.
 Be specific, concrete, and grounded in the simulation data.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All narrative text, descriptions, and assumptions must be in Portuguese.
 Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question asked: %s
@@ -316,6 +317,7 @@ func (rg *ReportGenerator) generateRuptureScenarios(ctx context.Context, questio
 	systemPrompt := `You are a strategic disruption analyst.
 Your task: identify the 3 most likely rupture scenarios — moments where fundamental market rules could be rewritten.
 For each scenario, explain who breaks the rule, how it happens, the impact, and crucially: how the company could be FIRST to break it themselves.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All text fields must be in Portuguese.
 Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question asked: %s
@@ -359,6 +361,7 @@ Produce exactly 3 rupture scenarios in this JSON format:
 func (rg *ReportGenerator) generateCoalitions(ctx context.Context, question, summary string) ([]Coalition, error) {
 	systemPrompt := `You are a strategic analyst identifying hidden alliances in a market simulation.
 Based on the simulation data, identify 2-4 coalitions of agents that aligned around shared interests.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All text fields must be in Portuguese.
 Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question: %s
@@ -399,6 +402,7 @@ func (rg *ReportGenerator) generateRuptureTimeline(ctx context.Context, question
 
 	systemPrompt := `You are a strategic foresight analyst building a disruption timeline.
 Map each rupture scenario to a specific time horizon with a trigger event.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All text fields must be in Portuguese.
 Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question: %s
@@ -444,7 +448,9 @@ func (rg *ReportGenerator) generateActionPlaybook(ctx context.Context, question,
 
 	systemPrompt := `You are a strategic advisor creating an action playbook for a company.
 Based on the simulation results, provide concrete, actionable recommendations.
-Be specific — avoid generic advice. Respond in JSON format only.`
+Be specific — avoid generic advice.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR). All actions, risks, and recommendations must be in Portuguese.
+Respond in JSON format only.`
 
 	userPrompt := fmt.Sprintf(`Question: %s
 

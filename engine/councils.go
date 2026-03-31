@@ -59,7 +59,8 @@ func (c *Council) systemPrompt() string {
 	return fmt.Sprintf(`You are a senior expert in the %s domain serving on a strategic council.
 Your task: synthesize the current simulation state into a concise expert judgment (2-3 sentences).
 Focus on the most critical tension or opportunity visible in the %s domain right now.
-Be specific and actionable. Respond with plain text only — no JSON, no markdown.`, c.domain, c.domain)
+Be specific and actionable. Respond with plain text only — no JSON, no markdown.
+IMPORTANT: Respond entirely in Brazilian Portuguese (PT-BR).`, c.domain, c.domain)
 }
 
 func (c *Council) buildPrompt(world *World, round int) string {
