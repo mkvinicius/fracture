@@ -253,7 +253,7 @@ export default function NewSimulationPage({ onNavigate }: { onNavigate: (p: Page
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: simPhase === 'researching' ? 'oklch(0.75 0.18 55)' : 'var(--color-accent)', animation: 'pulse 1.2s infinite' }} />
             <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text)' }}>
-              {simPhase === 'researching' ? '🔍 DeepSearch — Pesquisando contexto de mercado...' : '◈ FRACTURE — Executando simulação com 32 agentes...'}
+              {simPhase === 'researching' ? '🔍 DeepSearch — Pesquisando contexto de mercado...' : '◈ FRACTURE — Executando simulação com 56 agentes...'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
