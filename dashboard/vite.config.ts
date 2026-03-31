@@ -21,7 +21,7 @@ export default defineConfig({
     assetsDir: 'bundle',
     rollupOptions: {
       output: {
-        entryFileNames: 'bundle/index.js',
+        entryFileNames: 'bundle/app.js',
         chunkFileNames: 'bundle/[name].js',
         assetFileNames: 'bundle/[name][extname]',
       },
