@@ -158,11 +158,11 @@ set "CGO_ENABLED=1"
 set "CC="
 
 if exist "C:\Program Files\Git\mingw64\bin\gcc.exe" (
-    set "CC=C:\Program Files\Git\mingw64\bin\gcc.exe"
+    set "CC=C:\PROGRA~1\Git\mingw64\bin\gcc.exe"
     goto :build
 )
 if exist "C:\Program Files\Git\usr\bin\gcc.exe" (
-    set "CC=C:\Program Files\Git\usr\bin\gcc.exe"
+    set "CC=C:\PROGRA~1\Git\usr\bin\gcc.exe"
     goto :build
 )
 :: Tenta MinGW standalone
