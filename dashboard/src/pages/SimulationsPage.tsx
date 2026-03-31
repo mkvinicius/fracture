@@ -12,7 +12,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
     fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d ?? []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
-  const statusColor = (s: string) => s === 'complete' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'failed' ? 'var(--color-danger)' : 'var(--color-warning)'
+  const statusColor = (s: string) => s === 'done' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'failed' || s === 'error' ? 'var(--color-danger)' : 'var(--color-warning)'
 
   const toggleSelect = (id: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -55,7 +55,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {sims.map(sim => (
             <div key={sim.id} style={{ background: 'var(--color-surface)', borderRadius: '10px', border: `1px solid ${selected.has(sim.id) ? 'var(--color-accent)' : 'var(--color-border)'}`, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-              {sim.status === 'complete' && (
+              {sim.status === 'done' && (
                 <input
                   type="checkbox"
                   checked={selected.has(sim.id)}
@@ -73,7 +73,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
-                {sim.status === 'complete' && (
+                {sim.status === 'done' && (
                   <>
                     <button
                       onClick={() => onNavigate('result', sim.id)}
