@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/fracture/fracture/engine"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite3"
 )
 
 // openTestDB creates a temp SQLite DB with the minimal schema needed by Store.

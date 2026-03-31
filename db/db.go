@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite3"
 )
 
 //go:embed schema.sql

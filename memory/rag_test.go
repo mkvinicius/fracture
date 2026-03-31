@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite3"
 )
 
 func openRAGTestDB(t *testing.T) *sql.DB {

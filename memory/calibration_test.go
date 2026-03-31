@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite3"
 )
 
 // openCalibrationTestDB creates a temp SQLite DB with the tables needed by Calibrator.
