@@ -676,19 +676,25 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		archetypes.BuiltinDisruptors(disruptorLLM)...,
 	)
 
-	// Apply archetype calibration: agents with higher accuracy_weight get more influence
+	// Apply archetype calibration — try company first, fall back to department.
+	// This ensures even users without a company set benefit from cross-simulation learning.
+	var cals []memory.ArchetypeCalibration
 	if job.Company != "" {
-		if cals, err := h.calibrator.GetCalibrationReport(job.Company); err == nil && len(cals) > 0 {
-			engineCals := make([]engine.AgentCalibration, len(cals))
-			for i, c := range cals {
-				engineCals[i] = engine.AgentCalibration{
-					AgentID:        c.ArchetypeID,
-					AccuracyWeight: c.AccuracyWeight,
-				}
+		cals, _ = h.calibrator.GetCalibrationReport(job.Company)
+	}
+	if len(cals) == 0 && job.Department != "" {
+		cals, _ = h.calibrator.GetCalibrationReportByDomain(job.Department)
+	}
+	if len(cals) > 0 {
+		engineCals := make([]engine.AgentCalibration, len(cals))
+		for i, c := range cals {
+			engineCals[i] = engine.AgentCalibration{
+				AgentID:        c.ArchetypeID,
+				AccuracyWeight: c.AccuracyWeight,
 			}
-			agents = engine.ApplyCalibration(agents, engineCals)
-			log.Printf("[FRACTURE] Applied calibration for %d archetypes (sim %s)", len(cals), job.ID)
 		}
+		agents = engine.ApplyCalibration(agents, engineCals)
+		log.Printf("[FRACTURE] Applied calibration for %d archetypes (sim %s)", len(cals), job.ID)
 	}
 
 	// Build memory store
@@ -714,6 +720,7 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		World:      world,
 		Memory:     memStore,
 		CouncilLLM: router.ForRole(llm.RoleSynthesis),
+		VotingLLM:  router.ForRole(llm.RoleSynthesis),
 		Mode:       jobModeCfg,
 	}
 
@@ -789,22 +796,26 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 		log.Printf("[FRACTURE] Saving heuristic report for sim %s (no LLM)", job.ID)
 	}
 
-	// --- JUDGE + EWC fire-and-forget ---
+	// --- JUDGE + EWC + ProposalAccuracy — fire-and-forget ---
 	go func() {
 		jCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// round real do primeiro fracture point (0 se não houve)
+		// Estimativa real do round previsto: quando a tensão cruzou 0.50 pela primeira vez.
+		// Antes era sempre igual ao round real (roundAccuracy sempre 1.0 — judge inútil).
 		actualFractureRound := 0
 		if len(primaryResult.FractureEvents) > 0 {
 			actualFractureRound = primaryResult.FractureEvents[0].Round
 		}
+		predictedFractureRound := job.Rounds + 1 // default: sem fracture esperado
+		for _, rr := range primaryResult.Rounds {
+			if rr.Tension >= 0.50 {
+				predictedFractureRound = rr.Round
+				break
+			}
+		}
 
-		// sem fonte de round previsto no relatório — usa o real para creditar
-		// participantes quando um fracture ocorreu (roundAccuracy = 1.0)
-		predictedFractureRound := actualFractureRound
-
-		// monta participação dos agentes
+		// Participação dos agentes
 		participation := make(map[string]bool)
 		for _, rr := range primaryResult.Rounds {
 			for _, action := range rr.Actions {
@@ -812,7 +823,7 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 			}
 		}
 
-		// constrói e executa julgamento
+		// Constrói e executa julgamento
 		judgement := memory.BuildJudgement(
 			primaryResult.SimulationID,
 			job.Company,
@@ -824,7 +835,28 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 			log.Printf("[FRACTURE] judge failed sim=%s: %v", primaryResult.SimulationID, err)
 		}
 
-		// consolida pesos EWC para o setor atual
+		// Calibração direta por ProposalAccuracy: disruptores com propostas aceitas ganham peso.
+		// Esta é a fonte de verdade mais direta — não depende de round prediction.
+		if len(primaryResult.ProposalAccuracy) > 0 && h.calibrator != nil {
+			records := make([]memory.ProposalAccuracyRecord, len(primaryResult.ProposalAccuracy))
+			for i, a := range primaryResult.ProposalAccuracy {
+				records[i] = memory.ProposalAccuracyRecord{
+					AgentID:  a.AgentID,
+					Proposed: a.Proposed,
+					Accepted: a.Accepted,
+					Rate:     a.Rate,
+				}
+			}
+			dept := job.Department
+			if dept == "" {
+				dept = "market"
+			}
+			if err := h.calibrator.RecordProposalAccuracy(dept, records); err != nil {
+				log.Printf("[FRACTURE] proposal accuracy calibration failed sim=%s: %v", primaryResult.SimulationID, err)
+			}
+		}
+
+		// Consolida pesos EWC para o setor atual
 		if h.calibrator.EWC != nil {
 			fishers, err := h.calibrator.EWC.ComputeFisherWeights(jCtx, job.Department)
 			if err == nil {
@@ -832,7 +864,7 @@ func (h *Handler) runSimulation(job *simJob, extraContext string, domainResults 
 			}
 		}
 	}()
-	// --- fim Judge + EWC ---
+	// --- fim Judge + EWC + ProposalAccuracy ---
 
 	h.simMu.Lock()
 	job.Status = "done"

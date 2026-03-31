@@ -24,6 +24,9 @@ type SimulationConfig struct {
 	Memory     AgentMemory
 	// Optional: council support. If CouncilLLM is nil, councils are skipped.
 	CouncilLLM LLMCaller
+	// Optional: if set, the top-N highest-power agents vote via LLM reasoning
+	// instead of the heuristic. Produces more realistic fracture outcomes.
+	VotingLLM LLMCaller
 	Mode       ModeConfig
 }
 
@@ -139,7 +142,7 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 	}
 	return &Simulation{
 		cfg:           cfg,
-		voter:         NewVoter(cfg.Agents),
+		voter:         NewVoter(cfg.Agents, cfg.VotingLLM),
 		proposalStats: make(map[string]*agentProposalStat),
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -15,25 +16,32 @@ type VoteRecord struct {
 	Rationale   string  `json:"rationale"`
 }
 
+// llmVotingThreshold is the minimum PowerWeight for LLM-driven voting.
+// Agents at or above this threshold reason via LLM; others use the fast heuristic.
+const llmVotingThreshold = 0.85
+
+// maxLLMVoters caps the number of LLM calls per fracture vote to control cost.
+const maxLLMVoters = 5
+
 // Voter manages the weighted voting mechanism for FRACTURE POINT proposals.
 type Voter struct {
 	agents []Agent
+	llm    LLMCaller // optional; if set, high-power agents vote via LLM reasoning
 }
 
-// NewVoter creates a Voter from the simulation's agent pool.
-func NewVoter(agents []Agent) *Voter {
-	return &Voter{agents: agents}
+// NewVoter creates a Voter. If llm is non-nil, the top-N agents by power weight
+// will reason through their vote using the LLM instead of the fast heuristic.
+func NewVoter(agents []Agent, llm LLMCaller) *Voter {
+	return &Voter{agents: agents, llm: llm}
 }
 
 // Vote runs the weighted vote on a RuleProposal.
 // Returns (accepted bool, breakdown []VoteRecord).
 // A proposal is accepted when weighted YES votes exceed 50% of total weight.
+// If v.llm is set, the top maxLLMVoters agents by power weight vote via LLM reasoning.
 func (v *Voter) Vote(ctx context.Context, proposal RuleProposal, actions []AgentAction) (bool, []VoteRecord) {
-	// Build a quick lookup: agentID -> action text (for context)
-	actionByAgent := make(map[string]AgentAction, len(actions))
-	for _, a := range actions {
-		actionByAgent[a.AgentID] = a
-	}
+	// Identify which agents qualify for LLM voting (sorted by power, top N)
+	llmVoterIDs := v.selectLLMVoters()
 
 	var breakdown []VoteRecord
 	var totalWeight, yesWeight float64
@@ -42,12 +50,18 @@ func (v *Voter) Vote(ctx context.Context, proposal RuleProposal, actions []Agent
 		p := agent.Personality()
 		weight := p.PowerWeight
 		if weight == 0 {
-			weight = 0.5 // default equal weight
+			weight = 0.5
 		}
 		totalWeight += weight
 
-		// Determine vote based on agent type and personality alignment
-		vote, rationale := v.agentVote(agent, proposal)
+		var vote bool
+		var rationale string
+
+		if v.llm != nil && llmVoterIDs[agent.ID()] {
+			vote, rationale = v.agentVoteLLM(ctx, agent, proposal)
+		} else {
+			vote, rationale = v.agentVote(agent, proposal)
+		}
 
 		breakdown = append(breakdown, VoteRecord{
 			AgentID:   agent.ID(),
@@ -64,6 +78,75 @@ func (v *Voter) Vote(ctx context.Context, proposal RuleProposal, actions []Agent
 
 	accepted := totalWeight > 0 && (yesWeight/totalWeight) > 0.5
 	return accepted, breakdown
+}
+
+// selectLLMVoters returns a set of agent IDs that should vote via LLM.
+// Picks the top maxLLMVoters agents by power weight above llmVotingThreshold.
+func (v *Voter) selectLLMVoters() map[string]bool {
+	if v.llm == nil {
+		return nil
+	}
+	type pair struct {
+		id     string
+		weight float64
+	}
+	var eligible []pair
+	for _, a := range v.agents {
+		pw := a.Personality().PowerWeight
+		if pw >= llmVotingThreshold {
+			eligible = append(eligible, pair{a.ID(), pw})
+		}
+	}
+	sort.Slice(eligible, func(i, j int) bool { return eligible[i].weight > eligible[j].weight })
+	result := make(map[string]bool, maxLLMVoters)
+	for i, p := range eligible {
+		if i >= maxLLMVoters {
+			break
+		}
+		result[p.id] = true
+	}
+	return result
+}
+
+// agentVoteLLM calls the LLM to reason through a vote for a high-power agent.
+// Falls back to heuristic on error.
+func (v *Voter) agentVoteLLM(ctx context.Context, agent Agent, proposal RuleProposal) (bool, string) {
+	p := agent.Personality()
+
+	system := fmt.Sprintf(
+		`You are %s — %s.
+Your traits: %s
+Your goals: %s
+Your biases: %s
+
+You are voting on a proposed rule change in a strategic simulation.
+Answer with exactly: ACCEPT or REJECT, followed by one sentence of reasoning.
+Be decisive and stay in character. Respond in Brazilian Portuguese (PT-BR).`,
+		p.Name, p.Role,
+		strings.Join(p.Traits, ", "),
+		strings.Join(p.Goals, ", "),
+		strings.Join(p.Biases, ", "),
+	)
+
+	user := fmt.Sprintf(
+		"Proposed change: \"%s\"\nDomain: %s | New stability: %.2f\nRationale: %s\n\nDo you ACCEPT or REJECT?",
+		proposal.NewDescription, proposal.NewDomain, proposal.NewStability, proposal.Rationale,
+	)
+
+	raw, _, err := v.llm.Call(ctx, system, user, 120)
+	if err != nil {
+		return v.agentVote(agent, proposal) // fallback to heuristic
+	}
+
+	upper := strings.ToUpper(strings.TrimSpace(raw))
+	vote := strings.HasPrefix(upper, "ACCEPT")
+
+	// Extract the reasoning sentence after ACCEPT/REJECT
+	rationale := raw
+	if idx := strings.Index(raw, " "); idx > 0 && idx < 10 {
+		rationale = strings.TrimSpace(raw[idx:])
+	}
+	return vote, fmt.Sprintf("[LLM] %s", rationale)
 }
 
 // agentVote determines how an agent votes on a fracture proposal.

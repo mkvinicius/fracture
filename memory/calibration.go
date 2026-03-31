@@ -128,6 +128,93 @@ func (c *Calibrator) recalibrateForSimulation(simulationID string, deltaScore fl
 	return nil
 }
 
+// RecordProposalAccuracy updates calibration weights for disruptor agents based on
+// how often their fracture proposals were accepted by the voting pool.
+// Called automatically after each simulation — higher acceptance rate → higher AccuracyWeight.
+func (c *Calibrator) RecordProposalAccuracy(department string, accuracy []ProposalAccuracyRecord) error {
+	for _, a := range accuracy {
+		if a.Proposed == 0 {
+			continue
+		}
+		// Map acceptance rate [0,1] to delta score [-1,+1]:
+		//   0.0 rate (all rejected) → -1.0
+		//   0.5 rate (half accepted) → neutral 0.0
+		//   1.0 rate (all accepted) → +1.0
+		deltaScore := (a.Rate * 2.0) - 1.0
+		if err := c.recalibrateForAgent(a.AgentID, department, deltaScore, a.Proposed); err != nil {
+			continue // non-fatal per agent
+		}
+	}
+	return nil
+}
+
+// ProposalAccuracyRecord carries proposal outcome data for a single disruptor agent.
+type ProposalAccuracyRecord struct {
+	AgentID  string
+	Proposed int
+	Accepted int
+	Rate     float64
+}
+
+// recalibrateForAgent directly updates accuracy_weight for one agent+domain using EMA.
+func (c *Calibrator) recalibrateForAgent(agentID, domain string, deltaScore float64, samples int) error {
+	var currentWeight float64
+	var sampleCount int
+
+	err := c.db.QueryRow(`
+		SELECT accuracy_weight, sample_count
+		FROM archetype_calibration
+		WHERE archetype_id = ? AND domain = ?
+	`, agentID, domain).Scan(&currentWeight, &sampleCount)
+
+	if err == sql.ErrNoRows {
+		currentWeight = 1.0
+		sampleCount = 0
+	} else if err != nil {
+		return err
+	}
+
+	adjustment := (deltaScore + 1.0) / 2.0
+	alpha := 1.0 / (float64(sampleCount) + 1.0)
+	newWeight := currentWeight*(1.0-alpha) + adjustment*alpha
+	calibrated := math.Max(0.3, math.Min(2.0, 0.3+newWeight*1.7))
+
+	_, err = c.db.Exec(`
+		INSERT INTO archetype_calibration (archetype_id, domain, accuracy_weight, sample_count, updated_at)
+		VALUES (?, ?, ?, ?, unixepoch())
+		ON CONFLICT(archetype_id, domain) DO UPDATE SET
+			accuracy_weight = ?,
+			sample_count    = sample_count + ?,
+			updated_at      = unixepoch()
+	`, agentID, domain, calibrated, samples, calibrated, samples)
+	return err
+}
+
+// GetCalibrationReportByDomain returns calibration for archetypes in a given domain/department.
+// Used as a fallback when no company is set.
+func (c *Calibrator) GetCalibrationReportByDomain(domain string) ([]ArchetypeCalibration, error) {
+	rows, err := c.db.Query(`
+		SELECT archetype_id, AVG(accuracy_weight), SUM(sample_count), AVG(accuracy_weight)
+		FROM archetype_calibration
+		WHERE domain = ?
+		GROUP BY archetype_id
+	`, domain)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var calibrations []ArchetypeCalibration
+	for rows.Next() {
+		var cal ArchetypeCalibration
+		if err := rows.Scan(&cal.ArchetypeID, &cal.AccuracyWeight, &cal.FeedbackCount, &cal.AverageAccuracy); err != nil {
+			continue
+		}
+		calibrations = append(calibrations, cal)
+	}
+	return calibrations, rows.Err()
+}
+
 // GetCalibrationReport returns the calibration state for archetypes that have
 // participated in simulations for the given company.
 func (c *Calibrator) GetCalibrationReport(companyID string) ([]ArchetypeCalibration, error) {
