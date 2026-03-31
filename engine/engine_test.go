@@ -6,12 +6,18 @@ import (
 )
 
 func TestSimulationConfigDefaults(t *testing.T) {
-	cfg := SimulationConfig{}
-	if cfg.MaxRounds == 0 {
-		cfg.MaxRounds = 40
+	standard := DefaultConfigForMode(ModeStandard)
+	if standard.MaxRounds != 30 {
+		t.Errorf("Standard mode MaxRounds should be 30, got %d", standard.MaxRounds)
 	}
-	if cfg.MaxRounds != 40 {
-		t.Errorf("default MaxRounds should be 40, got %d", cfg.MaxRounds)
+	premium := DefaultConfigForMode(ModePremium)
+	if premium.MaxRounds != 50 {
+		t.Errorf("Premium mode MaxRounds should be 50, got %d", premium.MaxRounds)
+	}
+	// Zero MaxRounds should fall back to Standard (30), not hardcoded 40
+	sim := NewSimulation(SimulationConfig{})
+	if sim.cfg.MaxRounds != 30 {
+		t.Errorf("default MaxRounds should be 30 (Standard mode), got %d", sim.cfg.MaxRounds)
 	}
 }
 

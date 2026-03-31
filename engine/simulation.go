@@ -109,7 +109,10 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 		cfg.ID = uuid.New().String()
 	}
 	if cfg.MaxRounds == 0 {
-		cfg.MaxRounds = 40
+		cfg.MaxRounds = cfg.Mode.MaxRounds
+		if cfg.MaxRounds == 0 {
+			cfg.MaxRounds = DefaultConfigForMode(ModeStandard).MaxRounds
+		}
 	}
 	if cfg.Mode.CouncilInterval == 0 {
 		cfg.Mode.CouncilInterval = 5

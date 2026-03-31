@@ -12,7 +12,7 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
     fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d ?? []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
-  const statusColor = (s: string) => s === 'done' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'failed' || s === 'error' ? 'var(--color-danger)' : 'var(--color-warning)'
+  const statusColor = (s: string) => s === 'done' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'error' ? 'var(--color-danger)' : 'var(--color-warning)'
 
   const toggleSelect = (id: string) => setSelected(prev => {
     const next = new Set(prev)
