@@ -1,75 +1,144 @@
 @echo off
+setlocal EnableDelayedExpansion
+chcp 65001 >nul 2>&1
 title FRACTURE Installer
-echo.
-echo  ================================
-echo   FRACTURE - Instalador Windows
-echo  ================================
-echo.
 
-:: Requer privilegio de administrador
+:: ============================================================
+:: AUTO-ELEVACAO: reinicia como Administrador se nao for admin
+:: ============================================================
 net session >nul 2>&1
 if errorlevel 1 (
-    echo [AVISO] Execute como Administrador para instalar Go e Node.js automaticamente.
-    echo Clique com botao direito no arquivo .bat e escolha "Executar como administrador".
+    echo Solicitando permissao de Administrador...
+    powershell -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
+)
+
+echo.
+echo  ================================================
+echo    FRACTURE - Instalador Automatico Windows
+echo  ================================================
+echo.
+
+:: ============================================================
+:: PASSO 1 - INSTALAR GO
+:: ============================================================
+go version >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] Go ja instalado.
+    goto :check_git
+)
+
+echo [1/4] Instalando Go...
+
+:: Tenta winget primeiro (Windows 10/11 nativo, sem SSL issue)
+winget --version >nul 2>&1
+if not errorlevel 1 (
+    winget install GoLang.Go --silent --accept-package-agreements --accept-source-agreements
+    goto :reload_go_path
+)
+
+:: Fallback: bitsadmin (built-in, ignora SSL corporativo)
+echo     Usando bitsadmin para download...
+bitsadmin /transfer "FRACTUREGoDownload" /priority FOREGROUND ^
+    "https://go.dev/dl/go1.24.0.windows-amd64.msi" ^
+    "%TEMP%\go-fracture.msi" >nul 2>&1
+
+if not exist "%TEMP%\go-fracture.msi" (
+    :: Ultimo fallback: PowerShell com SSL bypass
+    powershell -Command ^
+        "[Net.ServicePointManager]::ServerCertificateValidationCallback={$true}; ^
+         (New-Object Net.WebClient).DownloadFile('https://go.dev/dl/go1.24.0.windows-amd64.msi','%TEMP%\go-fracture.msi')"
+)
+
+if not exist "%TEMP%\go-fracture.msi" (
+    echo.
+    echo [ERRO] Nao foi possivel baixar o Go automaticamente.
+    echo.
+    echo  Solucao manual (2 minutos):
+    echo  1. Abra o navegador
+    echo  2. Acesse: https://go.dev/dl
+    echo  3. Baixe: go1.24.0.windows-amd64.msi
+    echo  4. Instale dando duplo clique
+    echo  5. Execute este instalador novamente
     echo.
     pause
     exit /b 1
 )
 
-:: -------------------------------------------------------
-:: Funcao auxiliar: download via PowerShell (evita SSL curl)
-:: -------------------------------------------------------
+msiexec /i "%TEMP%\go-fracture.msi" /quiet /norestart
+del "%TEMP%\go-fracture.msi" >nul 2>&1
 
-:: Verifica Git
+:reload_go_path
+:: Recarrega PATH do registro para este processo
+for /f "skip=2 tokens=3*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%A %%B"
+set "PATH=%SYSPATH%;C:\Program Files\Go\bin"
+
+go version >nul 2>&1
+if errorlevel 1 (
+    set "PATH=%PATH%;C:\Program Files\Go\bin"
+    go version >nul 2>&1
+    if errorlevel 1 (
+        echo [AVISO] Go instalado mas requer reinicio do terminal.
+        echo Fechando e reabrindo automaticamente...
+        :: Cria script temporario para continuar apos nova sessao
+        echo @echo off > "%TEMP%\fracture-continue.bat"
+        echo set PATH=%%PATH%%;C:\Program Files\Go\bin >> "%TEMP%\fracture-continue.bat"
+        echo cd /d "%USERPROFILE%\fracture" >> "%TEMP%\fracture-continue.bat"
+        echo go build -o fracture.exe . >> "%TEMP%\fracture-continue.bat"
+        echo if errorlevel 1 pause >> "%TEMP%\fracture-continue.bat"
+        echo start "" fracture.exe >> "%TEMP%\fracture-continue.bat"
+        echo timeout /t 3 /nobreak ^>nul >> "%TEMP%\fracture-continue.bat"
+        echo start http://localhost:4000 >> "%TEMP%\fracture-continue.bat"
+        echo del "%%~f0" >> "%TEMP%\fracture-continue.bat"
+        start cmd /k "%TEMP%\fracture-continue.bat"
+        exit /b
+    )
+)
+echo [OK] Go instalado.
+
+:: ============================================================
+:: PASSO 2 - INSTALAR GIT
+:: ============================================================
+:check_git
 git --version >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Instalando Git...
-    powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/Git-2.44.0-64-bit.exe' -OutFile '%TEMP%\git-installer.exe' }"
-    if not exist "%TEMP%\git-installer.exe" (
-        echo [ERRO] Falha ao baixar Git. Instale manualmente: https://git-scm.com/download/win
-        pause
-        exit /b 1
-    )
-    "%TEMP%\git-installer.exe" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS="icons,ext\reg\shellhere,assoc,assoc_sh"
+if not errorlevel 1 (
+    echo [OK] Git ja instalado.
+    goto :clone_repo
+)
+
+echo [2/4] Instalando Git...
+winget --version >nul 2>&1
+if not errorlevel 1 (
+    winget install Git.Git --silent --accept-package-agreements --accept-source-agreements
     set "PATH=%PATH%;C:\Program Files\Git\cmd"
-    del "%TEMP%\git-installer.exe"
+    goto :clone_repo
 )
 
-:: Verifica Go
-go version >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Baixando Go (pode demorar alguns minutos)...
-    powershell -Command "& { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://go.dev/dl/go1.24.0.windows-amd64.msi' -OutFile '%TEMP%\go-installer.msi' }"
-    if not exist "%TEMP%\go-installer.msi" (
-        echo [ERRO] Falha ao baixar Go. Instale manualmente: https://go.dev/dl
-        pause
-        exit /b 1
-    )
-    echo [INFO] Instalando Go...
-    msiexec /i "%TEMP%\go-installer.msi" /quiet /norestart
-    del "%TEMP%\go-installer.msi"
-    :: Recarrega PATH do registro
-    for /f "tokens=2*" %%A in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul') do set "SYSPATH=%%B"
-    for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v Path 2^>nul') do set "USERPATH=%%B"
-    set "PATH=%SYSPATH%;%USERPATH%;C:\Program Files\Go\bin"
-)
+bitsadmin /transfer "FRACTUREGitDownload" /priority FOREGROUND ^
+    "https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/Git-2.44.0-64-bit.exe" ^
+    "%TEMP%\git-fracture.exe" >nul 2>&1
 
-:: Verifica Go novamente
-go version >nul 2>&1
-if errorlevel 1 (
-    echo [ERRO] Go nao encontrado mesmo apos instalacao.
-    echo Reinicie o computador e execute o instalador novamente.
+if exist "%TEMP%\git-fracture.exe" (
+    "%TEMP%\git-fracture.exe" /VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS
+    set "PATH=%PATH%;C:\Program Files\Git\cmd"
+    del "%TEMP%\git-fracture.exe" >nul 2>&1
+) else (
+    echo [ERRO] Nao foi possivel instalar Git automaticamente.
+    echo Baixe em: https://git-scm.com/download/win
     pause
     exit /b 1
 )
+echo [OK] Git instalado.
 
-:: Clona ou atualiza o repositorio
+:: ============================================================
+:: PASSO 3 - CLONAR OU ATUALIZAR REPOSITORIO
+:: ============================================================
+:clone_repo
+echo [3/4] Baixando FRACTURE...
 if exist "%USERPROFILE%\fracture\.git" (
-    echo [INFO] Atualizando FRACTURE...
     cd /d "%USERPROFILE%\fracture"
-    git pull
+    git pull origin master
 ) else (
-    echo [INFO] Baixando FRACTURE...
     git clone https://github.com/mkvinicius/fracture.git "%USERPROFILE%\fracture"
     if errorlevel 1 (
         echo [ERRO] Falha ao clonar repositorio.
@@ -78,38 +147,42 @@ if exist "%USERPROFILE%\fracture\.git" (
     )
     cd /d "%USERPROFILE%\fracture"
 )
+echo [OK] Codigo atualizado.
 
-:: Compila binario Go (dashboard/dist ja esta incluso no repositorio)
-echo [INFO] Compilando FRACTURE (aguarde)...
+:: ============================================================
+:: PASSO 4 - COMPILAR
+:: ============================================================
+echo [4/4] Compilando FRACTURE...
 cd /d "%USERPROFILE%\fracture"
 go build -o fracture.exe .
 if errorlevel 1 (
-    echo.
     echo [ERRO] Falha na compilacao.
-    echo Possivel causa: Go recem instalado precisa de nova sessao.
-    echo.
-    echo Solucao: feche este terminal, abra um novo como Administrador e execute:
-    echo   cd %USERPROFILE%\fracture
-    echo   go build -o fracture.exe .
-    echo   fracture.exe
     pause
     exit /b 1
 )
+echo [OK] Compilado com sucesso.
 
-:: Cria atalho na area de trabalho
-echo [INFO] Criando atalho na area de trabalho...
-powershell -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('%USERPROFILE%\Desktop\FRACTURE.lnk'); $s.TargetPath = '%USERPROFILE%\fracture\fracture.exe'; $s.WorkingDirectory = '%USERPROFILE%\fracture'; $s.Save()"
+:: ============================================================
+:: ATALHO NA AREA DE TRABALHO
+:: ============================================================
+powershell -Command ^
+    "$ws=New-Object -ComObject WScript.Shell; ^
+     $s=$ws.CreateShortcut('%USERPROFILE%\Desktop\FRACTURE.lnk'); ^
+     $s.TargetPath='%USERPROFILE%\fracture\fracture.exe'; ^
+     $s.WorkingDirectory='%USERPROFILE%\fracture'; ^
+     $s.Save()"
 
+:: ============================================================
+:: INICIAR
+:: ============================================================
 echo.
-echo  ================================
-echo   FRACTURE instalado com sucesso
-echo  ================================
+echo  ================================================
+echo    FRACTURE instalado com sucesso!
+echo  ================================================
 echo.
-echo  Atalho criado na area de trabalho.
-echo  Ou execute diretamente: %USERPROFILE%\fracture\fracture.exe
+echo  Iniciando...
 echo.
 
-:: Inicia o FRACTURE
 start "" "%USERPROFILE%\fracture\fracture.exe"
 timeout /t 3 /nobreak >nul
 start http://localhost:4000
