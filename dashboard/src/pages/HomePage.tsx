@@ -45,8 +45,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
           { label: 'Total de Simulações', value: sims.length },
-          { label: 'Eventos de Ruptura', value: sims.filter(s => s.status === 'complete').length },
-          { label: 'Arquétipos Ativos', value: 12 },
+          { label: 'Simulações Concluídas', value: sims.filter(s => s.status === 'done').length },
+          { label: 'Arquétipos Ativos', value: 56 },
         ].map(stat => (
           <div key={stat.label} style={Card}>
             <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--color-accent)', lineHeight: 1 }}>{stat.value}</div>
@@ -67,7 +67,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
             {sims.slice(0, 5).map(sim => (
               <div key={sim.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', borderRadius: '8px', background: 'var(--color-surface-2)' }}>
                 <div style={{ fontSize: '13px', color: 'var(--color-text)', flex: 1, marginRight: '16px' }}>{sim.question}</div>
-                <div style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: sim.status === 'complete' ? 'oklch(0.65 0.18 145 / 0.15)' : 'oklch(0.75 0.18 85 / 0.15)', color: sim.status === 'complete' ? 'var(--color-success)' : 'var(--color-warning)' }}>{sim.status}</div>
+                <div style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '4px', background: sim.status === 'done' ? 'oklch(0.65 0.18 145 / 0.15)' : 'oklch(0.75 0.18 85 / 0.15)', color: sim.status === 'done' ? 'var(--color-success)' : 'var(--color-warning)' }}>{sim.status}</div>
               </div>
             ))}
           </div>
