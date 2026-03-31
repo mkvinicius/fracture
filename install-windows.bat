@@ -150,13 +150,71 @@ if exist "%USERPROFILE%\fracture\.git" (
 echo [OK] Codigo atualizado.
 
 :: ============================================================
-:: PASSO 4 - COMPILAR
+:: PASSO 4 - CONFIGURAR CGO (necessario para SQLite)
+:: ============================================================
+:: go-sqlite3 requer CGO e um compilador C.
+:: Git for Windows ja inclui GCC — detecta automaticamente.
+set "CGO_ENABLED=1"
+set "CC="
+
+if exist "C:\Program Files\Git\mingw64\bin\gcc.exe" (
+    set "CC=C:\Program Files\Git\mingw64\bin\gcc.exe"
+    goto :build
+)
+if exist "C:\Program Files\Git\usr\bin\gcc.exe" (
+    set "CC=C:\Program Files\Git\usr\bin\gcc.exe"
+    goto :build
+)
+:: Tenta MinGW standalone
+if exist "C:\mingw64\bin\gcc.exe" (
+    set "CC=C:\mingw64\bin\gcc.exe"
+    set "PATH=%PATH%;C:\mingw64\bin"
+    goto :build
+)
+if exist "C:\TDM-GCC-64\bin\gcc.exe" (
+    set "CC=C:\TDM-GCC-64\bin\gcc.exe"
+    set "PATH=%PATH%;C:\TDM-GCC-64\bin"
+    goto :build
+)
+:: Tenta gcc no PATH
+where gcc >nul 2>&1
+if not errorlevel 1 goto :build
+
+:: Instala TDM-GCC via winget se disponivel
+winget --version >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] Instalando compilador C (TDM-GCC)...
+    winget install tdm-gcc.tdm-gcc --silent --accept-package-agreements --accept-source-agreements
+    set "PATH=%PATH%;C:\TDM-GCC-64\bin"
+)
+
+:build
+:: ============================================================
+:: PASSO 5 - COMPILAR
 :: ============================================================
 echo [4/4] Compilando FRACTURE...
 cd /d "%USERPROFILE%\fracture"
-go build -o fracture.exe .
+if defined CC (
+    "%CC%" --version >nul 2>&1 && (
+        go build -o fracture.exe .
+    ) || (
+        set "CC="
+        go build -o fracture.exe .
+    )
+) else (
+    go build -o fracture.exe .
+)
 if errorlevel 1 (
+    echo.
     echo [ERRO] Falha na compilacao.
+    echo.
+    echo  O FRACTURE usa SQLite e precisa de um compilador C.
+    echo  Solucao mais rapida:
+    echo    1. Abra o PowerShell como Admin e execute:
+    echo       winget install tdm-gcc.tdm-gcc
+    echo    2. Feche e abra um novo CMD como Admin
+    echo    3. Execute este instalador novamente
+    echo.
     pause
     exit /b 1
 )
