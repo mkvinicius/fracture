@@ -1,6 +1,10 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strings"
+)
 
 // VoteRecord captures one agent's vote on a FRACTURE POINT proposal.
 type VoteRecord struct {
@@ -62,32 +66,63 @@ func (v *Voter) Vote(ctx context.Context, proposal RuleProposal, actions []Agent
 	return accepted, breakdown
 }
 
-// agentVote produces a simple heuristic vote for an agent.
-// In production this would call the LLM; here we use a fast heuristic
-// to avoid N extra LLM calls per FRACTURE POINT.
+// agentVote determines how an agent votes on a fracture proposal.
+// Uses goal-alignment scoring: agents vote YES when their goals match the proposal,
+// NO when their personality traits (risk-aversion, conservatism) oppose it,
+// and apply domain-specific resistance logic for regulatory proposals.
 func (v *Voter) agentVote(agent Agent, proposal RuleProposal) (bool, string) {
 	p := agent.Personality()
 
-	// Disruptors always vote YES on fracture proposals
+	// Disruptors always vote YES — they exist to break rules
 	if agent.Type() == AgentDisruptor {
 		return true, "Disruptors support rule changes by nature"
 	}
 
-	// Conformists vote based on how much the new rule threatens their stability
-	// Low stability rules (fragile) are more likely to be accepted
-	if proposal.NewStability < 0.4 {
-		return true, p.Name + " sees this change as low-risk"
+	// Detect risk-averse / conservative personality
+	isRiskAverse := false
+	for _, trait := range p.Traits {
+		t := strings.ToLower(trait)
+		if t == "conservative" || t == "risk-averse" || t == "status quo bias" ||
+			t == "process-driven" || t == "compliance-obsessed" || t == "precautionary principle" {
+			isRiskAverse = true
+			break
+		}
 	}
 
-	// Domain-based heuristic: regulators resist market changes
-	if proposal.NewDomain == DomainRegulation {
-		for _, trait := range p.Traits {
-			if trait == "conservative" || trait == "risk-averse" {
-				return false, p.Name + " opposes regulatory disruption"
+	// Extremely fragile proposals (NewStability < 0.25) are seen as dangerously experimental
+	if isRiskAverse && proposal.NewStability < 0.25 {
+		return false, fmt.Sprintf("%s opposes a dangerously unstable proposal (stability %.2f)", p.Name, proposal.NewStability)
+	}
+
+	// Regulatory proposals: risk-averse agents resist disruption of rules they depend on
+	if proposal.NewDomain == DomainRegulation && isRiskAverse {
+		return false, p.Name + " opposes regulatory disruption — too much uncertainty"
+	}
+
+	// Goal-alignment scoring: count how many goals are echoed in the proposal text
+	proposalText := strings.ToLower(proposal.NewDescription + " " + proposal.Rationale)
+	alignScore := 0
+	for _, goal := range p.Goals {
+		// Extract meaningful keywords from each goal (skip short filler words)
+		for _, word := range strings.Fields(strings.ToLower(goal)) {
+			if len(word) > 4 && strings.Contains(proposalText, word) {
+				alignScore++
+				break // count at most once per goal
 			}
 		}
 	}
 
-	// Default: conformists resist change
-	return false, p.Name + " prefers the current rules"
+	if alignScore >= 2 {
+		return true, fmt.Sprintf("%s sees this proposal advancing %d of their strategic goals", p.Name, alignScore)
+	}
+	if alignScore == 1 {
+		// Weak alignment: fragile rules are allowed, stable ones less so
+		if proposal.NewStability < 0.50 {
+			return false, p.Name + " is cautious — proposal is still too disruptive"
+		}
+		return true, p.Name + " cautiously supports this — one goal aligns"
+	}
+
+	// No goal alignment: conformists default to resistance
+	return false, p.Name + " sees no benefit — no strategic goals advanced"
 }

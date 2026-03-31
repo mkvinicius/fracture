@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,20 +68,31 @@ type ActionPlaybook struct {
 	CriticalRisks  []string `json:"critical_risks"`
 }
 
+// AgentProposalAccuracy tracks how often each disruptor's fracture proposals were accepted.
+// Persisted by the handler layer to calibrate future simulations.
+type AgentProposalAccuracy struct {
+	AgentID   string  `json:"agent_id"`
+	AgentName string  `json:"agent_name"`
+	Proposed  int     `json:"proposed"`
+	Accepted  int     `json:"accepted"`
+	Rate      float64 `json:"rate"` // accepted / proposed, 0 if proposed == 0
+}
+
 // SimulationResult is the final output after all rounds complete.
 type SimulationResult struct {
-	SimulationID     string             `json:"simulation_id"`
-	Question         string             `json:"question"`
-	Rounds           []RoundResult      `json:"rounds"`
-	FractureEvents   []FractureEvent    `json:"fracture_events"`
-	FinalWorld       WorldSnapshot      `json:"final_world"`
-	ProbableFuture   string             `json:"probable_future"`
-	TensionMap       map[string]float64 `json:"tension_map"`
-	RuptureScenarios []RuptureScenario  `json:"rupture_scenarios"`
-	Coalitions       []Coalition        `json:"coalitions"`
-	ActionPlaybook   *ActionPlaybook    `json:"action_playbook,omitempty"`
-	TotalTokens      int                `json:"total_tokens"`
-	DurationMs       int64              `json:"duration_ms"`
+	SimulationID     string                  `json:"simulation_id"`
+	Question         string                  `json:"question"`
+	Rounds           []RoundResult           `json:"rounds"`
+	FractureEvents   []FractureEvent         `json:"fracture_events"`
+	FinalWorld       WorldSnapshot           `json:"final_world"`
+	ProbableFuture   string                  `json:"probable_future"`
+	TensionMap       map[string]float64      `json:"tension_map"`
+	RuptureScenarios []RuptureScenario       `json:"rupture_scenarios"`
+	Coalitions       []Coalition             `json:"coalitions"`
+	ActionPlaybook   *ActionPlaybook         `json:"action_playbook,omitempty"`
+	ProposalAccuracy []AgentProposalAccuracy `json:"proposal_accuracy,omitempty"`
+	TotalTokens      int                     `json:"total_tokens"`
+	DurationMs       int64                   `json:"duration_ms"`
 }
 
 // RuptureScenario describes one possible future where a rule is broken.
@@ -95,12 +108,19 @@ type RuptureScenario struct {
 
 // Simulation orchestrates a full FRACTURE simulation run.
 type Simulation struct {
-	cfg     SimulationConfig
-	voter   *Voter
-	results []RoundResult
-	events  []FractureEvent
-	tokens  int
-	startAt time.Time
+	cfg           SimulationConfig
+	voter         *Voter
+	results       []RoundResult
+	events        []FractureEvent
+	tokens        int
+	startAt       time.Time
+	proposalStats map[string]*agentProposalStat // agentID -> stats
+}
+
+type agentProposalStat struct {
+	name     string
+	proposed int
+	accepted int
 }
 
 // NewSimulation creates a ready-to-run simulation.
@@ -118,8 +138,9 @@ func NewSimulation(cfg SimulationConfig) *Simulation {
 		cfg.Mode.CouncilInterval = 5
 	}
 	return &Simulation{
-		cfg:   cfg,
-		voter: NewVoter(cfg.Agents),
+		cfg:           cfg,
+		voter:         NewVoter(cfg.Agents),
+		proposalStats: make(map[string]*agentProposalStat),
 	}
 }
 
@@ -181,6 +202,9 @@ func (s *Simulation) Run(ctx context.Context) <-chan RoundResult {
 			if len(councils) > 0 && round%interval == 0 {
 				RunAllCouncils(ctx, councils, s.cfg.World, round)
 			}
+
+			// Update social context for the next round: agents can see top signals
+			s.cfg.World.SetPrevRoundInfluence(s.buildInfluenceSummary(actions))
 
 			rr := RoundResult{
 				Round:          round,
@@ -253,7 +277,76 @@ func (s *Simulation) processFractureProposal(
 	if voteResult {
 		s.cfg.World.ApplyProposal(proposal)
 	}
+
+	// Track proposal accuracy per agent for post-simulation calibration.
+	agentID := proposal.ProposedByAgent
+	if agentID != "" {
+		stat, ok := s.proposalStats[agentID]
+		if !ok {
+			// Find the agent name for reporting
+			name := agentID
+			for _, a := range s.cfg.Agents {
+				if a.ID() == agentID {
+					name = a.Personality().Name
+					break
+				}
+			}
+			stat = &agentProposalStat{name: name}
+			s.proposalStats[agentID] = stat
+		}
+		stat.proposed++
+		if voteResult {
+			stat.accepted++
+		}
+	}
+
 	return event
+}
+
+// buildInfluenceSummary creates a brief social context string from the top-3
+// most powerful agents' actions. Used to inform agents about the social landscape.
+func (s *Simulation) buildInfluenceSummary(actions []AgentAction) string {
+	if len(actions) == 0 {
+		return ""
+	}
+
+	// Build power-weight lookup
+	powerByID := make(map[string]float64, len(s.cfg.Agents))
+	nameByID := make(map[string]string, len(s.cfg.Agents))
+	for _, a := range s.cfg.Agents {
+		p := a.Personality()
+		powerByID[a.ID()] = p.PowerWeight
+		nameByID[a.ID()] = p.Name
+	}
+
+	// Sort actions by power weight descending
+	sorted := make([]AgentAction, len(actions))
+	copy(sorted, actions)
+	sort.Slice(sorted, func(i, j int) bool {
+		return powerByID[sorted[i].AgentID] > powerByID[sorted[j].AgentID]
+	})
+
+	const maxSignals = 4
+	var sb strings.Builder
+	sb.WriteString("Signals from the most influential players last round:\n")
+	for i, a := range sorted {
+		if i >= maxSignals || a.Text == "" {
+			break
+		}
+		name := nameByID[a.AgentID]
+		if name == "" {
+			name = a.AgentID
+		}
+		sb.WriteString(fmt.Sprintf("- %s: %s\n", name, truncate(a.Text, 120)))
+	}
+	return sb.String()
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
 }
 
 // ─── Calibration ─────────────────────────────────────────────────────────────
@@ -370,14 +463,32 @@ func calculateFractureConfidence(breakdown []VoteRecord, round, maxRounds int) f
 // immutable copy, not a live reference to the mutable World map.
 func (s *Simulation) Finalize() SimulationResult {
 	finalWorld := s.cfg.World.Snapshot(len(s.results))
+
+	// Build proposal accuracy slice for calibration
+	var accuracy []AgentProposalAccuracy
+	for id, stat := range s.proposalStats {
+		rate := 0.0
+		if stat.proposed > 0 {
+			rate = float64(stat.accepted) / float64(stat.proposed)
+		}
+		accuracy = append(accuracy, AgentProposalAccuracy{
+			AgentID:   id,
+			AgentName: stat.name,
+			Proposed:  stat.proposed,
+			Accepted:  stat.accepted,
+			Rate:      rate,
+		})
+	}
+
 	return SimulationResult{
-		SimulationID:   s.cfg.ID,
-		Question:       s.cfg.Question,
-		Rounds:         s.results,
-		FractureEvents: s.events,
-		FinalWorld:     finalWorld,
-		TensionMap:     finalWorld.TensionMap, // safe copy from Snapshot — not a live reference
-		TotalTokens:    s.tokens,
-		DurationMs:     time.Since(s.startAt).Milliseconds(),
+		SimulationID:     s.cfg.ID,
+		Question:         s.cfg.Question,
+		Rounds:           s.results,
+		FractureEvents:   s.events,
+		FinalWorld:       finalWorld,
+		TensionMap:       finalWorld.TensionMap, // safe copy from Snapshot — not a live reference
+		ProposalAccuracy: accuracy,
+		TotalTokens:      s.tokens,
+		DurationMs:       time.Since(s.startAt).Milliseconds(),
 	}
 }

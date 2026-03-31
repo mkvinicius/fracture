@@ -41,11 +41,12 @@ type RuleProposal struct {
 
 // World holds the graph of rules and tracks accumulated tension.
 type World struct {
-	mu           sync.RWMutex
-	Rules        map[string]*Rule   `json:"rules"`
-	TensionMap   map[string]float64 `json:"tension_map"`    // ruleID -> tension 0.0-1.0
-	RoundHistory []WorldSnapshot    `json:"round_history"`
-	Evidence     string             `json:"evidence,omitempty"` // domain context from DeepSearch (read-only, not voted on)
+	mu                  sync.RWMutex
+	Rules               map[string]*Rule   `json:"rules"`
+	TensionMap          map[string]float64 `json:"tension_map"`    // ruleID -> tension 0.0-1.0
+	RoundHistory        []WorldSnapshot    `json:"round_history"`
+	Evidence            string             `json:"evidence,omitempty"` // domain context from DeepSearch (read-only, not voted on)
+	prevRoundInfluence  string             // top agent signals from the previous round, not serialised
 }
 
 // WorldSnapshot is an immutable snapshot of the world at a given round.
@@ -86,12 +87,45 @@ func (w *World) CalculateTension() float64 {
 
 // IncreaseTension adds pressure to a specific rule.
 // Called when an agent's action implies dissatisfaction with that rule.
+// If the target rule is listed in other rules' DependsOn fields, those dependent
+// rules receive 30% of the delta as cascade pressure — destabilising a foundational
+// rule shakes everything built on top of it.
 func (w *World) IncreaseTension(ruleID string, delta float64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if _, ok := w.TensionMap[ruleID]; ok {
 		w.TensionMap[ruleID] = math.Min(1.0, w.TensionMap[ruleID]+delta)
+
+		// Cascade: rules that depend on this one also feel pressure.
+		const cascadeFactor = 0.30
+		for id, rule := range w.Rules {
+			if !rule.IsActive || id == ruleID {
+				continue
+			}
+			for _, dep := range rule.DependsOn {
+				if dep == ruleID {
+					w.TensionMap[id] = math.Min(1.0, w.TensionMap[id]+delta*cascadeFactor)
+					break
+				}
+			}
+		}
 	}
+}
+
+// SetPrevRoundInfluence stores a summary of the most influential agent signals
+// from the last completed round. Agents read this via PrevRoundInfluence() to
+// understand the social landscape before reacting.
+func (w *World) SetPrevRoundInfluence(summary string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.prevRoundInfluence = summary
+}
+
+// PrevRoundInfluence returns the influence summary set by SetPrevRoundInfluence.
+func (w *World) PrevRoundInfluence() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.prevRoundInfluence
 }
 
 // ApplyProposal mutates a rule after a successful FRACTURE POINT vote.

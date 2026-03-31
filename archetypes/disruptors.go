@@ -58,6 +58,13 @@ Set "fracture_proposal" to true and fill in the proposal fields.`
 Do NOT propose a formal rule change this round. Set "fracture_proposal" to false.`
 	}
 
+	// Include social context from the previous round if available
+	socialCtx := world.PrevRoundInfluence()
+	socialSection := ""
+	if socialCtx != "" {
+		socialSection = "\n" + socialCtx + "\n"
+	}
+
 	systemPrompt := fmt.Sprintf(`You are %s in a strategic disruption simulation.
 Role: %s
 Traits: %s
@@ -72,7 +79,7 @@ Current world rules (JSON):
 
 Most tense rules (highest disruption potential):
 %s
-
+%s
 System tension: %.2f/1.0
 %s
 
@@ -93,6 +100,7 @@ Respond in JSON format:
 		strings.Join(p.Biases, ", "),
 		strings.Join(ruleLines, ","),
 		strings.Join(tenseLines, "\n"),
+		socialSection,
 		tension,
 		fractureInstruction,
 	)

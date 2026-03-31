@@ -39,6 +39,13 @@ func (c *conformistAgent) React(
 		memLines = append(memLines, "- "+a.Text)
 	}
 
+	// Include social context from the previous round if available
+	socialCtx := world.PrevRoundInfluence()
+	socialSection := ""
+	if socialCtx != "" {
+		socialSection = "\n" + socialCtx
+	}
+
 	systemPrompt := fmt.Sprintf(`You are %s in a strategic simulation.
 Role: %s
 Traits: %s
@@ -53,7 +60,7 @@ Current world rules:
 
 Your recent actions:
 %s
-
+%s
 System tension level: %.2f/1.0 (higher = more instability in the market)
 
 Respond in 2-3 sentences describing your reaction to the current state of the world.
@@ -65,6 +72,7 @@ Format: {"reaction": "...", "friction_rules": ["rule_id1"], "tension_delta": {"r
 		strings.Join(p.Biases, ", "),
 		strings.Join(ruleLines, "\n"),
 		strings.Join(memLines, "\n"),
+		socialSection,
 		tension,
 	)
 
