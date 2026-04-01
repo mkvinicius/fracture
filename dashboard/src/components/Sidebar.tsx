@@ -5,6 +5,7 @@ const nav = [
   { id: 'new-simulation', label: 'Nova Simulação',   icon: '◈' },
   { id: 'simulations',    label: 'Histórico',        icon: '◎' },
   { id: 'archetypes',     label: 'Arquétipos',       icon: '◇' },
+  { id: 'causal-graph',   label: 'Grafo Causal',     icon: '⟡' },
   { id: 'settings',       label: 'Configurações',    icon: '⚙' },
 ] as const
 

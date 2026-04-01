@@ -1,7 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { type Page } from '../App'
 
-interface Sim { id: string; question: string; status: string; department: string; rounds: number; created_at: number; duration_ms?: number }
+interface Sim { id: string; question: string; status: string; department: string; rounds: number; created_at: number; duration_ms?: number; current_round?: number; current_tension?: number; fracture_count?: number; last_agent_name?: string }
+interface LiveProgress { current_round: number; current_tension: number; fracture_count: number; last_agent_name: string }
+
+function useLiveProgress(sims: Sim[], onUpdate: (id: string, p: LiveProgress) => void) {
+  const esRefs = useRef<Record<string, EventSource>>({})
+
+  useEffect(() => {
+    const running = sims.filter(s => s.status === 'running' || s.status === 'researching')
+    const activeIds = new Set(running.map(s => s.id))
+
+    // Close SSE for sims no longer running
+    Object.keys(esRefs.current).forEach(id => {
+      if (!activeIds.has(id)) {
+        esRefs.current[id].close()
+        delete esRefs.current[id]
+      }
+    })
+
+    // Open SSE for new running sims
+    running.forEach(sim => {
+      if (esRefs.current[sim.id]) return
+      const es = new EventSource(`/api/v1/simulations/${sim.id}/events`)
+      es.onmessage = (e) => {
+        try { onUpdate(sim.id, JSON.parse(e.data)) } catch {}
+      }
+      es.onerror = () => { es.close(); delete esRefs.current[sim.id] }
+      esRefs.current[sim.id] = es
+    })
+
+    return () => {
+      Object.values(esRefs.current).forEach(es => es.close())
+      esRefs.current = {}
+    }
+  }, [sims.map(s => s.id + s.status).join(',')])
+}
 
 export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, simId?: string, simIds?: string[]) => void }) {
   const [sims, setSims] = useState<Sim[]>([])
@@ -11,6 +45,10 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
   useEffect(() => {
     fetch('/api/v1/simulations').then(r => r.json()).then(d => { setSims(d ?? []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
+
+  useLiveProgress(sims, (id, p) => {
+    setSims(prev => prev.map(s => s.id === id ? { ...s, status: 'running', current_round: p.current_round, current_tension: p.current_tension, fracture_count: p.fracture_count, last_agent_name: p.last_agent_name } : s))
+  })
 
   const statusColor = (s: string) => s === 'done' ? 'var(--color-success)' : s === 'running' ? 'var(--color-accent)' : s === 'error' ? 'var(--color-danger)' : 'var(--color-warning)'
 
@@ -70,6 +108,17 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
                   {sim.duration_ms ? ` · ${(sim.duration_ms / 1000).toFixed(1)}s` : ''}
                   · {new Date(sim.created_at * 1000).toLocaleDateString()}
                 </div>
+                {(sim.status === 'running' || sim.status === 'researching') && sim.current_round != null && (
+                  <div style={{ marginTop: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--color-text-muted)', marginBottom: '3px' }}>
+                      <span>Rodada {sim.current_round}/{sim.rounds}{sim.last_agent_name ? ` · ${sim.last_agent_name}` : ''}</span>
+                      {sim.current_tension != null && <span style={{ color: sim.current_tension >= 0.7 ? 'var(--color-danger)' : sim.current_tension >= 0.5 ? '#f97316' : 'var(--color-text-muted)' }}>Tensão {Math.round(sim.current_tension * 100)}%{sim.fracture_count ? ` · ${sim.fracture_count} fratura(s)` : ''}</span>}
+                    </div>
+                    <div style={{ height: '4px', borderRadius: '2px', background: 'var(--color-background)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${((sim.current_round ?? 0) / sim.rounds) * 100}%`, background: 'var(--color-accent)', borderRadius: '2px', transition: 'width 0.5s' }} />
+                    </div>
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
@@ -86,6 +135,12 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
                       style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}
                     >
                       Ver Convergência
+                    </button>
+                    <button
+                      onClick={() => onNavigate('replay', sim.id)}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}
+                    >
+                      ▶ Replay
                     </button>
                     <button
                       onClick={() => onNavigate('feedback', sim.id)}

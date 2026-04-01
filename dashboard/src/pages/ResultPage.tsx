@@ -91,9 +91,16 @@ export default function ResultPage({ simId, onNavigate }: { simId: string; onNav
               {report.total_tokens.toLocaleString()} tokens · {(report.duration_ms / 1000).toFixed(1)}s · {report.watermark.version}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/markdown`, `fracture-${simId}.md`)} style={exportBtnStyle}>⬇ Markdown</button>
             <button onClick={() => downloadFile(`/api/v1/simulations/${simId}/export/json`, `fracture-${simId}.json`)} style={exportBtnStyle}>⬇ JSON</button>
+            <button onClick={() => window.print()} style={exportBtnStyle}>⬇ PDF</button>
+            <button
+              onClick={() => onNavigate('replay', simId)}
+              style={{ padding: '9px 14px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text-muted)', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              ▶ Replay
+            </button>
             <button
               onClick={() => onNavigate('feedback', simId)}
               style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--color-accent)', background: 'transparent', color: 'var(--color-accent)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}

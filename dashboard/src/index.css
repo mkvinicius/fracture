@@ -36,3 +36,14 @@ body {
   50% { box-shadow: 0 0 20px oklch(0.65 0.22 30 / 0.8); }
 }
 .fracture-glow { animation: fracture-glow 2s ease-in-out infinite; }
+
+@media print {
+  body { background: #fff !important; color: #111 !important; font-size: 12px; }
+  aside, nav, button, .no-print { display: none !important; }
+  #root { display: block !important; }
+  main { padding: 0 !important; }
+  * { box-shadow: none !important; animation: none !important; }
+  a { color: inherit; text-decoration: none; }
+  .fracture-glow { animation: none !important; }
+  @page { margin: 20mm; }
+}
