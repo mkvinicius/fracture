@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,6 +117,7 @@ type Simulation struct {
 	results       []RoundResult
 	events        []FractureEvent
 	tokens        int
+	atomicTokens  int64 // updated atomically per-agent for live feed
 	startAt       time.Time
 	proposalStats map[string]*agentProposalStat // agentID -> stats
 }
@@ -250,6 +252,31 @@ func (s *Simulation) runAgentsParallel(ctx context.Context, round int, tension f
 					Text:      fmt.Sprintf("[error: %v]", err),
 				}
 			}
+
+			// Emit live activity event to any connected SSE subscribers.
+			total := int(atomic.AddInt64(&s.atomicTokens, int64(action.TokensUsed)))
+			archetype := "conformist"
+			if a.Type() == AgentDisruptor {
+				archetype = "disruptor"
+			}
+			actionType := "react"
+			if action.IsFractureProposal {
+				actionType = "propose"
+			}
+			GlobalActivityBus.Emit(s.cfg.ID, ActivityEvent{
+				SimulationID: s.cfg.ID,
+				Round:        round,
+				AgentID:      a.ID(),
+				AgentName:    a.Personality().Name,
+				Archetype:    archetype,
+				ActionType:   actionType,
+				Snippet:      activitySnippet(action.Text, 220),
+				TokensUsed:   action.TokensUsed,
+				TotalTokens:  total,
+				Tension:      tension,
+				RuleID:       firstRuleKey(action.TensionDelta),
+			})
+
 			mu.Lock()
 			actions = append(actions, action)
 			mu.Unlock()
@@ -280,6 +307,30 @@ func (s *Simulation) processFractureProposal(
 	if voteResult {
 		s.cfg.World.ApplyProposal(proposal)
 	}
+
+	// Emit fracture event to live activity feed.
+	accepted := voteResult
+	agentNameForFracture := proposal.ProposedByAgent
+	for _, a := range s.cfg.Agents {
+		if a.ID() == proposal.ProposedByAgent {
+			agentNameForFracture = a.Personality().Name
+			break
+		}
+	}
+	total := int(atomic.LoadInt64(&s.atomicTokens))
+	GlobalActivityBus.Emit(s.cfg.ID, ActivityEvent{
+		SimulationID: s.cfg.ID,
+		Round:        round,
+		AgentID:      proposal.ProposedByAgent,
+		AgentName:    agentNameForFracture,
+		Archetype:    "disruptor",
+		ActionType:   "fracture",
+		Snippet:      activitySnippet(proposal.NewDescription, 220),
+		TotalTokens:  total,
+		Tension:      s.cfg.World.CalculateTension(),
+		RuleID:       proposal.OriginalRuleID,
+		Accepted:     &accepted,
+	})
 
 	// Track proposal accuracy per agent for post-simulation calibration.
 	agentID := proposal.ProposedByAgent

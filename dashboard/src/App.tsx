@@ -12,10 +12,11 @@ import ComparisonPage from './pages/ComparisonPage'
 import ConvergencePage from './pages/ConvergencePage'
 import ReplayPage from './pages/ReplayPage'
 import CausalGraphPage from './pages/CausalGraphPage'
+import LiveActivityPage from './pages/LiveActivityPage'
 import OnboardingWizard from './components/OnboardingWizard'
 import { useOnboarding } from './hooks/useOnboarding'
 
-export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence' | 'replay' | 'causal-graph'
+export type Page = 'home' | 'new-simulation' | 'simulations' | 'archetypes' | 'settings' | 'result' | 'feedback' | 'comparison' | 'convergence' | 'replay' | 'causal-graph' | 'live-activity'
 
 type UpdateInfo = {
   has_update: boolean
@@ -123,6 +124,7 @@ function App() {
       case 'convergence': return <ConvergencePage simId={selectedSimId} onNavigate={navigate} />
       case 'replay': return <ReplayPage simId={selectedSimId} onNavigate={navigate} />
       case 'causal-graph': return <CausalGraphPage onNavigate={navigate} />
+      case 'live-activity': return <LiveActivityPage simId={selectedSimId} onNavigate={navigate} />
       default: return <HomePage onNavigate={navigate} />
     }
   }

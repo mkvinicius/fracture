@@ -187,6 +187,7 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/simulations/{id}/export/markdown", h.exportMarkdown)
 	r.Get("/simulations/{id}/export/json", h.exportJSON)
 	r.Get("/simulations/{id}/events", h.getSimulationEvents)
+	r.Get("/simulations/{id}/activity", h.streamAgentActivity)
 	r.Get("/simulations/{id}/rounds", h.getSimulationRounds)
 	r.Get("/causal-graph", h.getCausalGraph)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
@@ -1072,6 +1073,66 @@ func (h *Handler) streamSimulation(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 			if job.Status == "done" || job.Status == "error" {
 				return
+			}
+		}
+	}
+}
+
+// streamAgentActivity streams per-agent ActivityEvents as SSE while the simulation runs.
+// Each "activity" SSE event carries a JSON-encoded engine.ActivityEvent.
+// The connection is closed automatically when the simulation ends or after 20 minutes.
+func (h *Handler) streamAgentActivity(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return
+	}
+
+	ch := engine.GlobalActivityBus.Subscribe(id)
+	defer engine.GlobalActivityBus.Unsubscribe(id, ch)
+
+	// Send a heartbeat so the browser knows the connection is alive.
+	fmt.Fprintf(w, "event: connected\ndata: {\"simulation_id\":%q}\n\n", id)
+	flusher.Flush()
+
+	timeout := time.After(20 * time.Minute)
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-timeout:
+			fmt.Fprintf(w, "event: timeout\ndata: {}\n\n")
+			flusher.Flush()
+			return
+		case ev, open := <-ch:
+			if !open {
+				fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+				flusher.Flush()
+				return
+			}
+			b, _ := json.Marshal(ev)
+			fmt.Fprintf(w, "event: activity\ndata: %s\n\n", b)
+			flusher.Flush()
+
+			// After a fracture event that ends the simulation (all rounds done),
+			// the status will be "done". Check here so we don't keep the
+			// connection open indefinitely after the last event.
+			if ev.ActionType == "fracture" {
+				h.simMu.RLock()
+				job, exists := h.simJobs[id]
+				h.simMu.RUnlock()
+				if exists && (job.Status == "done" || job.Status == "error") {
+					fmt.Fprintf(w, "event: done\ndata: {}\n\n")
+					flusher.Flush()
+					return
+				}
 			}
 		}
 	}

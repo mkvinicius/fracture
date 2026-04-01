@@ -122,6 +122,15 @@ export default function SimulationsPage({ onNavigate }: { onNavigate: (p: Page, 
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 <div style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', background: `${statusColor(sim.status)}22`, color: statusColor(sim.status), fontWeight: '600' }}>{sim.status}</div>
+                {(sim.status === 'running' || sim.status === 'researching') && (
+                  <button
+                    onClick={() => onNavigate('live-activity', sim.id)}
+                    style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--color-danger)', background: 'var(--color-danger)11', color: 'var(--color-danger)', fontSize: '12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '5px' }}
+                  >
+                    <span className="animate-pulse-dot" style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-danger)' }} />
+                    Ao Vivo
+                  </button>
+                )}
                 {sim.status === 'done' && (
                   <>
                     <button
