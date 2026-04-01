@@ -362,6 +362,97 @@ func (cg *CausalityGraph) GetCausalChain(companyID, decisionDesc string, depth i
 	return paths, nil
 }
 
+// ─── Causal graph export ──────────────────────────────────────────────────────
+
+// CausalGraphData is the full causal graph returned to the frontend.
+type CausalGraphData struct {
+	Nodes []CausalGraphNode `json:"nodes"`
+	Edges []CausalGraphEdge `json:"edges"`
+}
+
+// CausalGraphNode is a single node (decision or outcome) in the causal graph.
+type CausalGraphNode struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	Type        string `json:"type"` // "decision" | "outcome" | "cause" | "effect"
+	CompanyID   string `json:"company_id"`
+}
+
+// CausalGraphEdge is a directed cause→effect edge.
+type CausalGraphEdge struct {
+	From     string  `json:"from"`
+	To       string  `json:"to"`
+	Strength float64 `json:"strength"` // 0.0-1.0
+	Evidence int     `json:"evidence"` // number of observations
+}
+
+// GetFullCausalGraph returns all nodes and edges for a company/namespace.
+// If companyID is empty, returns cross-company global graph (all namespaces).
+func (cg *CausalityGraph) GetFullCausalGraph(companyID string) (*CausalGraphData, error) {
+	var (
+		nodeRows *sql.Rows
+		err      error
+	)
+	if companyID != "" {
+		nodeRows, err = cg.db.Query(`
+			SELECT DISTINCT n.id, n.description, n.node_type, n.company_id
+			FROM causality_nodes n
+			INNER JOIN causality_edges e ON (e.from_node = n.id OR e.to_node = n.id)
+			WHERE n.company_id = ? OR n.company_id LIKE ?
+			ORDER BY n.created_at DESC
+			LIMIT 80
+		`, companyID, companyID+"::%")
+	} else {
+		nodeRows, err = cg.db.Query(`
+			SELECT DISTINCT n.id, n.description, n.node_type, n.company_id
+			FROM causality_nodes n
+			INNER JOIN causality_edges e ON (e.from_node = n.id OR e.to_node = n.id)
+			ORDER BY n.created_at DESC
+			LIMIT 80
+		`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer nodeRows.Close()
+
+	nodeSet := make(map[string]bool)
+	var nodes []CausalGraphNode
+	for nodeRows.Next() {
+		var n CausalGraphNode
+		if err := nodeRows.Scan(&n.ID, &n.Description, &n.Type, &n.CompanyID); err != nil {
+			continue
+		}
+		nodes = append(nodes, n)
+		nodeSet[n.ID] = true
+	}
+
+	// Fetch edges between included nodes
+	edgeRows, err := cg.db.Query(`
+		SELECT from_node, to_node, strength, evidence
+		FROM causality_edges
+		ORDER BY evidence DESC, strength DESC
+		LIMIT 200
+	`)
+	if err != nil {
+		return &CausalGraphData{Nodes: nodes, Edges: nil}, nil
+	}
+	defer edgeRows.Close()
+
+	var edges []CausalGraphEdge
+	for edgeRows.Next() {
+		var e CausalGraphEdge
+		if err := edgeRows.Scan(&e.From, &e.To, &e.Strength, &e.Evidence); err != nil {
+			continue
+		}
+		if nodeSet[e.From] && nodeSet[e.To] {
+			edges = append(edges, e)
+		}
+	}
+
+	return &CausalGraphData{Nodes: nodes, Edges: edges}, nil
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 // hashString produces a deterministic short ID from a string.

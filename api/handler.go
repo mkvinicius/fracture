@@ -187,6 +187,8 @@ func (h *Handler) Routes() http.Handler {
 	r.Get("/simulations/{id}/export/markdown", h.exportMarkdown)
 	r.Get("/simulations/{id}/export/json", h.exportJSON)
 	r.Get("/simulations/{id}/events", h.getSimulationEvents)
+	r.Get("/simulations/{id}/rounds", h.getSimulationRounds)
+	r.Get("/causal-graph", h.getCausalGraph)
 	r.Post("/simulations/{id}/feedback", h.submitFeedback)
 
 	// Quick pulse (fast tension check, no full simulation)
@@ -1073,6 +1075,32 @@ func (h *Handler) streamSimulation(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (h *Handler) getSimulationRounds(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	rounds, err := h.db.ListRounds(id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if rounds == nil {
+		rounds = []db.RoundRow{}
+	}
+	writeJSON(w, http.StatusOK, rounds)
+}
+
+func (h *Handler) getCausalGraph(w http.ResponseWriter, r *http.Request) {
+	company := r.URL.Query().Get("company")
+	if company == "" {
+		company = r.URL.Query().Get("department")
+	}
+	graph, err := h.calibrator.Graph.GetFullCausalGraph(company)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, graph)
 }
 
 func (h *Handler) deleteSimulation(w http.ResponseWriter, r *http.Request) {
