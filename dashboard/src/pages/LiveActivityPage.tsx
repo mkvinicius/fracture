@@ -260,7 +260,7 @@ export default function LiveActivityPage({ simId, onNavigate }: { simId: string;
   // Group visible events by round for dividers
   const grouped: Array<{ type: 'divider'; round: number } | { type: 'event'; ev: ActivityEvent; idx: number }> = []
   let lastRound = -1
-  visible.forEach((ev, i) => {
+  visible.forEach((ev, _i) => {
     if (ev.round !== lastRound) {
       grouped.push({ type: 'divider', round: ev.round })
       lastRound = ev.round
