@@ -2,6 +2,8 @@ package db
 
 import (
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
 // ─── Archetype CRUD tests ─────────────────────────────────────────────────────
