@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 // openTestDB opens a temporary SQLite database for testing.
@@ -19,7 +21,7 @@ func openTestDB(t *testing.T) *DB {
 	}
 	f.Close()
 
-	sqlDB, err := sql.Open("sqlite3", f.Name()+"?_journal_mode=WAL&_foreign_keys=on")
+	sqlDB, err := sql.Open("sqlite", f.Name()+"?_journal_mode=WAL&_foreign_keys=on")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

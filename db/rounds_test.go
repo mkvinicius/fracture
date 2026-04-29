@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	_ "modernc.org/sqlite"
 )
 
 // ─── Rounds tests ─────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/fracture/fracture/engine"
+	_ "modernc.org/sqlite"
 )
 
 // TestSaveDomainContext tests persisting domain context with stability modifier.

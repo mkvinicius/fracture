@@ -75,6 +75,10 @@ func main() {
 	apiHandler := api.NewHandler(database, signer, sanitizer, auditLogger, tel)
 	r.Mount("/api/v1", apiHandler.Routes())
 
+	// ── Graceful shutdown ────────────────────────────────────────────────────
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// ── Scheduler: run due scheduled simulations every 5 minutes ────────────────
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
@@ -163,10 +167,6 @@ func main() {
 		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	// ── Graceful shutdown ────────────────────────────────────────────────────
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	go func() {
 		url := fmt.Sprintf("http://localhost:%d", port)
